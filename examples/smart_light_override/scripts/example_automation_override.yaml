@@ -1,0 +1,45 @@
+alias: Automation Override
+description: Temporarily disables automation and sets lighting for Rec Room.
+fields:
+  override_id:
+    description: Unique identifier for override mode.
+    example: livingroom_movie
+  scene_id:
+    description: Scene to activate during override.
+    example: scene.livingroom_movie_mode
+  automation_ids:
+    description: Comma-separated list of automations to disable.
+    example: >-
+      automation.example_smart_lighting_on,
+      automation.example_smart_lighting_off
+  lights:
+    description: List of lights to enable and their config settings.
+    example: |
+      - entity_id: light.living_room_main
+        brightness: 20
+        color_temp: 2700
+      - entity_id: light.tv_backlight
+        brightness: 60
+        rgb_color: [0, 0, 255]
+  duration:
+    description: Time before restoring automations.
+    example: "02:00:00"
+  boolean_id:
+    description: The input_boolean to toggle.
+    example: input_boolean.override_livingroom_toggle
+sequence:
+  - variables:
+      is_active: "{{ states[boolean_id].state }}"
+      is_activating: "{{ 1 if is_active == 'off' else 0 }}"
+  - data:
+      override_id: "{{ override_id }}"
+      scene_id: "{{ scene_id if scene_id else null }}"
+      automation_ids: "{{ automation_ids }}"
+      lights: "{{ lights if lights else null }}"
+      duration: "{{ duration }}"
+      is_activating: "{{ is_activating }}"
+    action: python_script.smart_light_override
+  - data:
+      entity_id: "{{ boolean_id }}"
+    action: input_boolean.toggle
+mode: single

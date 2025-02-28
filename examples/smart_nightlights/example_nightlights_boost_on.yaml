@@ -1,0 +1,77 @@
+# SPECIAL NOTE: These are built to operate only at night - you can create AM versions to run during daylight hours too.
+alias: (PM) Smart Nightlight Motion Activation and Boost
+description: Handles smart nightlight behavior based on motion detection.
+triggers:
+  - entity_id:
+      - binary_sensor.hallway_motion_sensor
+      - binary_sensor.bathroom_motion_sensor
+      - binary_sensor.livingroom_01_motion_sensor
+      - binary_sensor.livingroom_02_motion_sensor
+      - binary_sensor.kitchen_motion_sensor
+      - binary_sensor.laundryroom_motion_sensor
+    from: "off"
+    to: "on"
+    id: motion_detected
+    trigger: state
+conditions:
+  - condition: sun
+    after: sunset
+    before: sunrise
+actions:
+  - variables:
+      motion_source: "{{ trigger.entity_id }}"
+      light_mapping:  # map your light to its respective motion sensor
+        binary_sensor.hallway_motion_sensor: light.hallway_nightlight_light
+        binary_sensor.bathroom_motion_sensor: light.bathroom_nightlight_light
+        binary_sensor.livingroom_01_motion_sensor: light.livingroom_nightlight_01_light
+        binary_sensor.livingroom_02_motion_sensor: light.livingroom_nightlight_02_light
+        binary_sensor.kitchen_motion_sensor: light.kitchen_nightlight_light_light
+        binary_sensor.laundryroom_motion_sensor: light.laundryroom_nightlight_light
+      light: "{{ light_mapping[motion_source] | default('') }}"
+      lux_sensor_mapping: # Optional: map your illuminance sensors if using ambient lighting functionality (turns on lights only if ambient lighting is below threshold.)
+        binary_sensor.hallway_motion_sensor: sensor.hallway_nightlight_001_illuminance
+        binary_sensor.bathroom_motion_sensor: sensor.kidsbathroom_nightlight_002_illuminance
+        binary_sensor.livingroom_01_motion_sensor: sensor.livingroom_01_illuminance
+        binary_sensor.livingroom_02_motion_sensor: sensor.livingroom_nightlight_02_illuminance
+        binary_sensor.kitchen_motion_sensor: sensor.kitchen_nightlight_005_illuminance
+        binary_sensor.laundryroom_motion_sensor: sensor.laundryroom_nightlight_illuminance
+      lux_sensor: "{{ lux_sensor_mapping[motion_source] | default('') }}"
+  - data:
+      motion_source: "{{ motion_source }}"
+      light: "{{ light }}" # mapping is used to identify the light that spotted you (for boosting)
+      timer: timer.nightlight_idle_timer
+      nightlights: # a list of the lights you wish to manipulate.
+        - light: light.hallway_nightlight_light
+          lux_sensor: sensor.hallway_nightlight_illuminance # illuminance required if you intend to lux limit the light.
+          motion_sensor: binary_sensor.hallway_motion_sensor # sending the sensor related to light - script checks if its 'on' if so, boosts that light too.
+          lux_threshold: 5 # observe your illuminence sensors over time to identify the lux value you want them to turn off at
+        - light: light.bathroom_nightlight_light
+          lux_sensor: sensor.bathroom_nightlight_illuminance
+          motion_sensor: binary_sensor.bathroom_motion_sensor
+          lux_threshold: 20
+        - light: light.livingroom_nightlight_01_light
+          lux_sensor: sensor.livingroom_01_illuminance
+          motion_sensor: binary_sensor.livingroom_01_motion_sensor
+          lux_threshold: 19
+        - light: light.livingroom_nightlight_02_light
+          lux_sensor: sensor.livingroom_nightlight_02_illuminance
+          motion_sensor: binary_sensor.livingroom_02_motion_sensor
+          lux_threshold: 19
+        - light: light.kitchen_nightlight_light
+          lux_sensor: sensor.kitchen_nightlight_005_illuminance
+          motion_sensor: binary_sensor.kitchen_motion_sensor
+          lux_threshold: 19
+        - light: light.laundryroom_nightlight_light
+          lux_sensor: sensor.laundryroom_nightlight_illuminance
+          motion_sensor: binary_sensor.laundryroom_motion_sensor
+          lux_threshold: 19 
+      brightness_low: 10
+      brightness_high: 100
+      color_temp_kelvin_low: 2000
+      color_temp_kelvin_high: 3500
+      idle_timeout_mins: 2
+      transition: 0.75
+      forced_dim: false
+    action: python_script.smart_nightlight_controller
+mode: queued
+max: 10

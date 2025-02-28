@@ -1,0 +1,21 @@
+alias: Smart Nightlight Turn Off on Timer Expiry
+description: >-
+  Turns off all nightlights when the idle timer expires and no motion is
+  detected.
+triggers:
+  - event_type: timer.finished
+    event_data:
+      entity_id: timer.nightlight_idle_timer
+    id: timer_expired
+    trigger: event
+conditions:
+  - condition: state
+    entity_id: binary_sensor.nightlights_all # grouped all motion sensors for the nightlights, if any 1 detects motion it will return "on"
+    state: "off"
+actions:
+  - target:
+      entity_id: light.nightlights_all_lights # grouped all nightlights. makes for easy off.
+    data:
+      transition: 0.25
+    action: light.turn_off
+mode: restart

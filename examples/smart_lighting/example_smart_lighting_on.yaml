@@ -1,0 +1,35 @@
+alias: Living Room Smart Lighting (Turn ON)
+description: Handles Rec Room lighting adaptively when motion is detected.
+triggers:
+  - entity_id: binary_sensor.livingroom_motionsensor_occupancy
+    from: "off"
+    to: "on"
+    id: rec_room_motion_activate
+    trigger: state
+  - entity_id: binary_sensor.livingroom_motionsensor_occupancy
+    for: "00:00:45" # if motion is continously sensed, it will re-run script to keep the timer updated.
+    to: "on"
+    id: rec_room_motion_sustained
+    trigger: state
+conditions: []
+actions:
+  - data:
+      lux_sensor: sensor.recroom_motionsensor_001_illuminance
+      lux_max: 65 # max ambient light for lights to turn on. if lux_sensor > lux_max, lights don't come on.
+      lights_for_lux_check: light.livingroom_lights # livingroom light group - checking for any light on as these will artificially impact the lux sensor.
+      motion_source: livingroom # for logging purposes.
+      binary_sensor: binary_sensor.livingroom_motionsensor_001_occupancy
+      light: light.livingroom_lights # light you wish to affect, use light-groups to control a whole room.
+      timer: timer.livingroom_idle_timer # need add timer to configuration.yaml <-- this lets automation turn off lights after no motion
+      brightness_low: 35
+      brightness_high: 100
+      color_temp_kelvin_low: 2200
+      color_temp_kelvin_high: 4500
+      idle_timeout_day: 5 # timeout timers (in minutes); give you granular control by time of day. so the lights are more efficient.
+      idle_timeout_evening: 10
+      idle_timeout_night: 1
+      nightlight_entity: light.livingroom_led_light_strip_001_light #OPTIONAL: select a specific light/light group to turn on at night.
+      nightlight_brightness_pct: 25 # OPTIONAL: define selected nightlight brightness %.
+      transition: 0.75
+    action: python_script.smart_light_control
+mode: restart

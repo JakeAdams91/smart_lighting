@@ -1,8 +1,15 @@
 """
-ADAPTIVE NIGHTLIGHT CONTROL 
+SMART NIGHTLIGHT CONTROLLER 
 for home assistant
+Copyright (c) 2025 Jacob M. Adams
+
+Licensed under the Prosperity Public License 3.0.0
+Free for personal and non-commercial use.
+Commercial use requires a paid license. Contact jakeadams@duck.com for details.
+Full license text at https://prosperitylicense.com or the LICENSE.md file
+
 ------------------------------------------------------
-Jacob M. Adams : 2025-02-25 : jake.adams@duck.com 
+--------------------- DESCRIPTION --------------------
 ------------------------------------------------------
 An advanced nightlight control system that manages multiple lights throughout the home,
 coordinating brightness levels based on motion detection, time of day, and ambient light.

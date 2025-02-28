@@ -1,14 +1,21 @@
 """
-ADAPTIVE LIGHT CONTROL 
+SMART LIGHT CONTROLLER 
 for home assistant
+Copyright (c) 2025 Jacob M. Adams
+
+Licensed under the Prosperity Public License 3.0.0
+Free for personal and non-commercial use.
+Commercial use requires a paid license. Contact jakeadams@duck.com for details.
+Full license text at https://prosperitylicense.com or the LICENSE.md file
+
 ------------------------------------------------------
-Jacob M. Adams : 2025-02-25 : jake.adams@duck.com 
+--------------------- DESCRIPTION --------------------
 ------------------------------------------------------
 A comprehensive motion-based smart lighting system that adjusts brightness and color temperature
 based on time of day, ambient light levels, and motion detection status.
 
 Input Parameters:
-- motion_sensor: Binary sensor entity to detect motion
+- binary_sensor: Binary sensor entity to detect motion
 - light: Light entity to control
 - timer: Timer entity for idle timeout
 - brightness_low: Minimum brightness percentage (default: 20)
@@ -82,18 +89,18 @@ def get_lux_value(sensor_entity):
         return 0
 
 
-def is_motion_active(motion_sensor):
+def is_motion_active(binary_sensor):
     """Safely check if motion is detected."""
-    if not motion_sensor:
+    if not binary_sensor:
         return False
         
-    motion_state = get_cached_state(motion_sensor)
+    motion_state = get_cached_state(binary_sensor)
     if not motion_state:
-        logger.debug(f"Motion sensor {motion_sensor} not found")
+        logger.debug(f"Motion sensor {binary_sensor} not found")
         return False
         
     if motion_state.state in ('unavailable', 'unknown'):
-        logger.debug(f"Motion sensor {motion_sensor} is {motion_state.state}")
+        logger.debug(f"Motion sensor {binary_sensor} is {motion_state.state}")
         return False
         
     return motion_state.state == "on"
@@ -317,7 +324,6 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
 
 ### Main Logic Execution  ###
 lux_sensor = data.get("lux_sensor")
-lux_min = data.get("lux_min", 5)
 lux_max = data.get("lux_max", 60)
 lux_value = get_lux_value(lux_sensor) # returns 0 as default.
 lights_for_lux_check = data.get("lights_for_lux_check")
@@ -328,7 +334,7 @@ all_room_lights_state = hass.states.get(lights_for_lux_check).state if lights_fo
 if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_lights_state == "off" and int(lux_value) <= int(lux_max)):
     # get caller arguments
     motion_source = data.get("motion_source")
-    motion_sensor = data.get("motion_sensor") # TODO RENAME THIS TO BINARY_SENSOR AS IT CAN RECEIVE ANY BINARY INPUT.
+    binary_sensor = data.get("binary_sensor")
     light_entity = data.get("light")
     timer_entity = data.get("timer")
     brightness_low = data.get("brightness_low", 20)
@@ -361,7 +367,7 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
     logger.info(f"Processing event. {current_time=}:{current_hour=}. {local_sunrise=}:{local_sunset=}. Processed Calculations {calculations}")
 
     # default values here simulate motion sensor "on" and timer "active"
-    room_motion_state = get_cached_state(motion_sensor).state if motion_sensor else "on" # default "on" for cases that don't need motion sensing. 
+    room_motion_state = get_cached_state(binary_sensor).state if binary_sensor else "on" # default "on" for cases that don't need motion sensing. 
     idle_timer_state = get_cached_state(timer_entity).state if timer_entity else "active" # default "active" just lets the code run to turn on light. 
     
     if room_motion_state == "on":

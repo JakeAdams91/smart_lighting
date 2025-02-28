@@ -1,0 +1,47 @@
+alias: Living Room Smart Light Override - Fun Mode
+description: Overrides Smart Light Automations and enables Fun Mode for 2 hours. Its a Toggle - click to deactivate, click to reactivate. else, timer will restore.
+triggers:
+  - entity_id: binary_sensor.living_room_button
+    trigger: state
+conditions: []
+actions:
+  - data:
+      override_id: recroom
+      automation_ids:
+        - automation.rec_room_motion_lighting_2_6_turn_on
+        - automation.rec_room_motion_lighting_2_0_turn_off
+      duration: "02:00:00"
+      lights:
+        - entity_id: light.recroom_west_light_001_light
+          brightness: 101 # 0 - 255, I'll update the python script in future to use brightness %... 
+          rgb_color:
+            - 30
+            - 18
+            - 255
+        - entity_id: light.recroom_west_light_001_light_2
+          brightness: 101
+          rgb_color:
+            - 130
+            - 4
+            - 255
+        - entity_id: light.recroom_east_light_001_light_2
+          brightness: 63
+          rgb_color:
+            - 255
+            - 10
+            - 155
+        - entity_id: light.recroom_east_light_002_light
+          brightness: 63
+          rgb_color:
+            - 255
+            - 3
+            - 94
+        - entity_id: light.led_light_strip_001_light
+          brightness: 38
+          rgb_color:
+            - 183
+            - 16
+            - 255
+      boolean_id: input_boolean.rec_room_override_active
+    action: script.automation_override
+mode: restart

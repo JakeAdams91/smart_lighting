@@ -1,12 +1,12 @@
 """
-HOME AUTOMATION OVERRIDE SYSTEM
+SMART LIGHT OVERRIDE SYSTEM
 for home assistant
 Copyright (c) 2025 Jacob M. Adams
 
 Licensed under the Prosperity Public License 3.0.0
 Free for personal and non-commercial use.
-Commercial use requires a paid license. Contact [Your Email] for details.
-Full license text at https://prosperitylicense.com
+Commercial use requires a paid license. Contact jakeadams@duck.com for details.
+Full license text at https://prosperitylicense.com or the LICENSE.md file
 
 ------------------------------------------------------
 --------------------- DESCRIPTION --------------------
@@ -15,113 +15,12 @@ A flexible control mechanism that allows users to temporarily disable automation
 and manually adjust lighting settings for a predefined period.
 
 Input Parameters:
-- automation_ids: List of automation entities to disable
+- automation_ids: List of automation entities to disable (automation.turn_on_livingroom)
 - lights: List of light entities with desired settings (brightness, color_temp_kelvin, rgb_color)
 - duration: Optional duration for auto-restore (format: "HH:MM:SS")
 - scene_id: Optional scene to activate instead of individual light settings
 - override_id: Identifier for this override instance (defaults to "default")
 - is_activating: int 0 or 1 Bool indicates whether we're to override or restore
-
----------------------------------------------------------
---------------- SUPPORTING CONFIGURATIONS ---------------
----------------------------------------------------------
-Required configurations:
-in configuration.yaml: 
-(   note:
-    Create as many as you need, this is to track what automations have been deactivated and for how long they should be off.
-    Use a automation, with a timer trigger pointing to this timer to re-activate the automations.
-)
-input_text:
-    override_{my area, room or whatever}_automations:
-        name: "Override Active Automations for {my area, room or whatever}"
-        max: 255
-timer:
-    override_{my area, room or whatever}_timer:
-        name: "Override {my area, room or whatever} Timer"
-        restore: true
-
----------------------------------------------------------
---------------------- EXAMPLE USAGE ---------------------
----------------------------------------------------------
-# CREATE A SINGLE, DYNAMIC SCRIPT, THIS CAN BE USED FOR ALL YOUR AUTOMATION OVERRIDE NEEDS.
-alias: Override Mode
-description: Temporarily disables automation and sets lighting for Rec Room.
-fields:
-  override_id:
-    description: Unique identifier for override mode.
-    example: livingroom_movie
-  scene_id:
-    description: Scene to activate during override.
-    example: scene.livingroom_movie_mode
-  automation_ids:
-    description: Comma-separated list of automations to disable.
-    example: >-
-      automation.livingroom_motion_lighting_on,
-      automation.livingroom_motion_lighting_off
-  lights:
-    description: List of lights to enable and their config settings.
-    example: |
-      - entity_id: light.living_room_main
-        brightness: 20
-        color_temp: 2700
-      - entity_id: light.tv_backlight
-        brightness: 60
-        rgb_color: [0, 0, 255]
-  duration:
-    description: Time before restoring automations.
-    example: "02:00:00"
-sequence:
-  - data:
-      override_id: "{{ override_id }}"
-      scene_id: "{{ scene_id }}"
-      automation_ids: "{{ automation_ids.split(', ') }}"
-      lights: "{{ lights }}"
-      duration: "{{ duration }}"
-    action: python_script.home_automation_override
-mode: single
-
-
-# CREATE AN AUTOMATION SPECIFIC TO THE AUTOMATIONS YOU WISH TO OVERRIDE (IF NEEDED)
-alias: livingroom Override Mode - Day Use
-description: >-
-  Overrides automations and sets lights for standard use. Returns to automation
-  after 2 hours
-triggers:
-  - entity_id: binary_sensor.livingroom_button
-    to: "on"
-    from: "off"
-    trigger: state
-conditions: []
-actions:
-  - data:
-      override_id: recroom_automations
-      automation_ids:
-        - automation.livingroom_motion_lighting_turn_on
-        - automation.livingroom_motion_lighting_turn_off
-      duration: "02:00:00"
-      lights:
-        - entity_id: light.livingroom_east_light_001_light_2
-          brightness: 254
-          color_temp_kelvin: 3816
-        - entity_id: light.livingroom_east_light_002_light
-          brightness: 254
-          color_temp_kelvin: 3816
-        - entity_id: light.livingroom_west_light_001_light
-          brightness: 191
-          color_temp_kelvin: 3816
-        - entity_id: light.livingroom_west_light_001_light_2
-          brightness: 191
-          color_temp_kelvin: 3816
-        - entity_id: light.livingroom_light_strip_001_light
-          brightness: 254
-          rgb_color:
-            - 215
-            - 151
-            - 255
-    action: script.livingroom_override_mode
-mode: single
-
-# Your dashboard can now leverage the script directly as well as your button automations.
 """
 
 # Initialize state cache
