@@ -8,17 +8,16 @@ This repository provides Home Assistant automation scripts for managing **smart 
 - **Motion-activated:** all nightlights come one at dimmed brightness when any 1 detects motion.
 - **Guided-lighting:** Lights brighten as they detect motion. return to dimmed state when clear.
 - **Ambient-sensitive:** Optional - Lights only activate when illuminance is below a configurable threshold.
-- **Dynamic brightness:** Adjusts brightness based on detected ambient light.
-- **Color adaptation:** Warmer hues at low brightness, cooler amber at higher brightness.
+- **Dynamic brightness:** Adjusts brightness based on time of day.
+- **Color adaptation:** Warmer hues at at nights, cooler white midday.
 - **Auto-off:** Turns off lights after a period of inactivity.
 - **Customizable thresholds:** fully configurable
 
 ### **2. Smart Light Control**
 - **Motion-activated:** turn on when motion is detected.
 - **Ambient-sensitive:** Optional - Lights only activate when illuminance is below a configurable threshold.
-- **Dynamic brightness:** Adjusts brightness based on detected ambient light.
-- **Color adaptation:** Warmer hues at low brightness, cooler amber at higher brightness.
-- **Room-based automation:** Each light is independently controlled and configurable.
+- **Dynamic brightness:** Adjusts brightness based on time of day.
+- **Color adaptation:** Warmer hues at nights, cooler white midday.
 - **Auto-off:** Turns off lights after a period of inactivity.
 - **Customizable thresholds:** fully configurable
 
