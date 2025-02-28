@@ -6,42 +6,42 @@ triggers:
 conditions: []
 actions:
   - data:
-      override_id: recroom
+      override_id: livingroom
       automation_ids:
-        - automation.rec_room_motion_lighting_2_6_turn_on
-        - automation.rec_room_motion_lighting_2_0_turn_off
+        - automation.example_smart_lighting_on
+        - automation.example_smart_lighting_off
       duration: "02:00:00"
       lights:
-        - entity_id: light.recroom_west_light_001_light
+        - entity_id: light.livingroom_01_light
           brightness: 101 # 0 - 255, I'll update the python script in future to use brightness %... 
           rgb_color:
             - 30
             - 18
             - 255
-        - entity_id: light.recroom_west_light_001_light_2
+        - entity_id: light.livingroom_02_light
           brightness: 101
           rgb_color:
             - 130
             - 4
             - 255
-        - entity_id: light.recroom_east_light_001_light_2
+        - entity_id: light.livingroom_03_light
           brightness: 63
           rgb_color:
             - 255
             - 10
             - 155
-        - entity_id: light.recroom_east_light_002_light
+        - entity_id: light.livingroom_04_light
           brightness: 63
           rgb_color:
             - 255
             - 3
             - 94
-        - entity_id: light.led_light_strip_001_light
+        - entity_id: light.livingroom_led_strip_light
           brightness: 38
           rgb_color:
             - 183
             - 16
             - 255
-      boolean_id: input_boolean.rec_room_override_active
-    action: script.automation_override
+      boolean_id: input_boolean.livingroom_override_active
+    action: script.smart_light_override
 mode: restart
