@@ -5,11 +5,11 @@ This repository provides Home Assistant automation scripts for managing **smart 
 ## Features
 
 ### **1. Nightlight Control**
-- **Motion-activated:** all nightlights come one at dimmed brightness when any 1 detects motion.
-- **Guided-lighting:** Lights brighten as they detect motion. return to dimmed state when clear.
+- **Motion-activated:** When 1 sensor detects motion, all nightlights come on at dimmed brightness.
+- **Guided-lighting:** Lights boost brightness as they detect motion. return to dimmed state when clear.
 - **Ambient-sensitive:** Optional - Lights only activate when illuminance is below a configurable threshold.
 - **Dynamic brightness:** Adjusts brightness based on time of day.
-- **Color adaptation:** Warmer hues at at nights, cooler white midday.
+- **Color adaptation:** Warmer hues at at nights, cooler white, midday.
 - **Auto-off:** Turns off lights after a period of inactivity.
 - **Customizable thresholds:** fully configurable
 
@@ -22,13 +22,12 @@ This repository provides Home Assistant automation scripts for managing **smart 
 - **Customizable thresholds:** fully configurable
 
 ### **3. Override Functions**
-
 - **Manual Override:** Deactivates specified automations
 - **Timed Override:** set override durations
 - **Auto-Resume:** Automation resumes after the override expires, adjusting brightness smoothly.
 
-## Getting Started
 
+## Getting Started
 ### **Prerequisites**
 
 - Home Assistant installed and running.
