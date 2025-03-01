@@ -84,9 +84,8 @@ def get_lux_value(sensor_entity):
         return 0
         
     try:
-        # First convert to float to preserve decimal precision
         lux_value = float(sensor_state.state)
-        return lux_value  # Or int(lux_value) if integer is required
+        return lux_value
     except (ValueError, TypeError):
         logger.debug(f"Could not convert lux value '{sensor_state.state}' to number")
         return 0
@@ -137,9 +136,8 @@ def start_idle_timer(timer_entity, duration_sec):
     
     if current_state in ["active", "paused"]:
         logger.info(f"Cancelling active timer {timer_entity} before restart")
-        hass.services.call("timer", "cancel", {"entity_id": timer_entity}) # <-- TODO confirm cancelling is necessary.
+        hass.services.call("timer", "cancel", {"entity_id": timer_entity})
         
-    # Start a new timer
     hass.services.call("timer", "start", {"entity_id": timer_entity, "duration": duration})
     logger.info(f"Timer {timer_entity} (re)started for {duration}")
 
@@ -147,7 +145,6 @@ def start_idle_timer(timer_entity, duration_sec):
 # ----------------- GET SUNRISE/SUNSET TIME AS DECIMAL 12.50 == 12:30 
 def get_sun_times():
     """Get today's sunrise and sunset times in local time."""
-    # sun_state = hass.states.get("sun.sun")
     sun_state = get_cached_state("sun.sun")
     if sun_state:
         utc_sunrise = sun_state.attributes.get("next_rising")
@@ -210,7 +207,7 @@ def calculate_settings_by_time(current_hour, local_sunrise, local_sunset, bright
                 "mode": mode_name,
                 "brightness_pct": brightness_pct,
                 "color_temp_kelvin": mode_config["color_temp"](),
-                "boosted_pct":max(brightness_pct, boosted_pct) # just in-case some funny business occurred, boosted will always be the greater of the two.
+                "boosted_pct":max(brightness_pct, boosted_pct)
             }
 
 # ---------------------- TURN ON/OFF LIGHT
@@ -239,8 +236,6 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
         
     try:
         current_state = light_state.state
-        
-        # Skip if light is already off and we want it off
         if current_state == "off" and brightness_pct == 0:
             return True
             
@@ -248,12 +243,10 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
         current_brightness = current_attrs.get("brightness", None)
         current_color_temp = current_attrs.get("color_temp_kelvin", None)
         
-        # Safe conversion with error handling
         try:
             current_brightness_pct = int(current_brightness / 2.55) if current_brightness is not None else 0
         except (TypeError, ValueError):
-            current_brightness_pct = 0
-            
+            current_brightness_pct = 0    
         try:
             current_color_temp_val = int(current_color_temp) if current_color_temp is not None else -1
         except (TypeError, ValueError):
@@ -266,7 +259,6 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
         if not (brightness_changed or color_temp_changed):
             return True
             
-        # Prepare service data
         service_data = {"entity_id": light_entity, "transition": transition}
         
         if brightness_pct > 0:
@@ -302,13 +294,14 @@ color_temp_low = data.get("color_temp_kelvin_low", 2000)
 color_temp_high = data.get("color_temp_kelvin_high", 3500)
 transition = data.get("transition", 0.75)
 idle_timeout_mins = data.get("idle_timeout_mins", 2)
-forced_dim = data.get("forced_dim", False)  # Add this parameter for the dim automation
+forced_dim = data.get("forced_dim", False)
 
 # Current time calculations
 current_time = dt_util.now()
 current_hour = current_time.hour + (current_time.minute / 60)
 local_sunrise, local_sunset = get_sun_times()
 idle_timeout_sec = int(idle_timeout_mins)*60
+
 # Calculate time-based settings
 settings = calculate_settings_by_time(
     current_hour=current_hour,
@@ -321,10 +314,8 @@ settings = calculate_settings_by_time(
 )
 logger.info(f"Time mode: {settings['mode']}, Brightness: {settings['brightness_pct']}%, Boosted: {settings['boosted_pct']}%")
 
-# Flag to track if any motion is active in the house
 any_motion_active = False
 
-# Process multiple nightlights if provided
 if nightlights is not None:
     logger.info(f"Processing {len(nightlights)} nightlights")
     
@@ -360,8 +351,7 @@ if nightlights is not None:
         
         # Handle motion state for this specific nightlight
         motion_active = is_motion_active(binary_sensor)
-        
-        # *** Key logic change ***
+
         # If we're in forced_dim mode, we only want to dim the specific light that triggered the automation
         if forced_dim:
             # Only dim this specific light if it's the one that triggered the motion_cleared event
@@ -400,7 +390,6 @@ if nightlights is not None:
                 )
             else:
                 # No motion anywhere, set to default brightness
-                # This will likely be caught by the idle timer eventually, but good to have
                 logger.info(f"No motion anywhere, setting {light_entity} to {settings['brightness_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 

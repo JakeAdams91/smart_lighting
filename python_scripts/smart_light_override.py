@@ -23,8 +23,15 @@ Input Parameters:
 - is_activating: int 0 or 1 Bool indicates whether we're to override or restore
 """
 
-# Initialize state cache
+
+override_id = data.get('override_id', 'default')
+automation_ids = data.get('automation_ids', [])
+lights = data.get('lights', [])
+duration = data.get('duration', None)
+scene_id = data.get('scene_id', None)
+is_activating = data.get('is_activating', 1) # default activate override.
 STATE_CACHE = {}
+
 
 def get_cached_state(entity_id):
     """Load entity state from cache or fetch it if not available."""
@@ -41,13 +48,6 @@ def refresh_state_cache(entity_ids=None):
             if entity_id in STATE_CACHE:
                 STATE_CACHE[entity_id] = hass.states.get(entity_id)
 
-# Parse input parameters
-override_id = data.get('override_id', 'default')
-automation_ids = data.get('automation_ids', [])
-lights = data.get('lights', [])
-duration = data.get('duration', None)
-scene_id = data.get('scene_id', None)
-is_activating = data.get('is_activating', 1) # default activate override.
 
 # Helper functions
 def log_action(action, details=None):
@@ -57,11 +57,9 @@ def log_action(action, details=None):
         message += f" - {details}"
     logger.info(message)
 
-# Setup override timer entity name
 timer_entity = f"timer.override_{override_id}_timer"
 input_text_entity = f"input_text.override_{override_id}_automations"
 
-# Pre-load relevant entities into cache
 entities_to_cache = automation_ids + [timer_entity, input_text_entity]
 if scene_id:
     entities_to_cache.append(scene_id)
@@ -72,12 +70,11 @@ for light in lights:
 for entity_id in entities_to_cache:
     get_cached_state(entity_id)
 
-# Check if we're activating or deactivating the override
 is_activating = bool(is_activating)
 log_action(action="is_activating", details=is_activating)
 if is_activating:
     # --------------------------------------------------
-    # ACTIVATION PHASE
+    # OVERRIDE PHASE
     # --------------------------------------------------
     log_action("Activating override mode")
     
@@ -109,7 +106,6 @@ if is_activating:
     
     # Apply lighting settings
     if scene_id:
-        # Activate the specified scene
         try:
             scene_state = get_cached_state(scene_id)
             if scene_state is not None:
@@ -133,10 +129,8 @@ if is_activating:
                     log_action("Warning: Light entity not found", entity_id)
                     continue
                     
-                # Build service call parameters
                 light_params = {'entity_id': entity_id}
                 
-                # Add optional parameters if they exist
                 if 'brightness' in light:
                     # Convert percentage to 0-255 scale if needed
                     brightness = light['brightness']
@@ -172,16 +166,6 @@ if is_activating:
                 'duration': duration
             })
             log_action("Started override timer", f"Duration: {duration}")
-            
-            # Create an automation to handle the timer finishing
-            # JUST CREATE AN AUTOMATION FOR EACH TIMER YOU WISH TO WATCH, 
-            # OR CREATE A DYNAMIC AUTOMATION TO WATCH ALL YOUR TIMERS ASSOCIATED WITH THE OVERRIDE FUNCTIONS
-            # timer_trigger_id = f"automation.override_{override_id}_timer"
-            
-            # hass.services.call('automation', 'turn_on', {
-            #     'entity_id': timer_trigger_id
-            # })
-            # log_action("Enabled timer trigger automation", timer_trigger_id)
         except Exception as e:
             log_action("Error setting up timer", str(e))
     
@@ -210,13 +194,12 @@ else:
             if automation_text and automation_text not in ["unknown", ""]:
                 active_automations = automation_text.split(',')
                 for automation_id in active_automations:
-                    if automation_id:  # Skip empty strings
+                    if automation_id:
                         hass.services.call('automation', 'turn_on', {'entity_id': automation_id})
                         log_action("Restored automation", automation_id)
     except Exception as e:
         log_action("Error restoring automations", str(e))
     
-    # Clear the stored automations
     try:
         hass.services.call('input_text', 'set_value', {
             'entity_id': input_text_entity,
@@ -227,5 +210,4 @@ else:
     
     log_action("Override mode deactivated successfully")
 
-# Clear cache at the end of execution
 STATE_CACHE.clear()

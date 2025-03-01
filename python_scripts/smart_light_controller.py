@@ -79,11 +79,9 @@ def get_lux_value(sensor_entity):
     if not sensor_state or sensor_state.state in ('unknown', 'unavailable', 'None'):
         logger.debug(f"Lux sensor {sensor_entity} unavailable or in invalid state: {sensor_state.state if sensor_state else 'None'}")
         return 0
-        
     try:
-        # First convert to float to preserve decimal precision
         lux_value = float(sensor_state.state)
-        return lux_value  # Or int(lux_value) if integer is required
+        return lux_value
     except (ValueError, TypeError):
         logger.debug(f"Could not convert lux value '{sensor_state.state}' to number")
         return 0
@@ -98,7 +96,6 @@ def is_motion_active(binary_sensor):
     if not motion_state:
         logger.debug(f"Motion sensor {binary_sensor} not found")
         return False
-        
     if motion_state.state in ('unavailable', 'unknown'):
         logger.debug(f"Motion sensor {binary_sensor} is {motion_state.state}")
         return False
@@ -134,9 +131,8 @@ def start_idle_timer(timer_entity, duration_sec):
     
     if current_state in ["active", "paused"]:
         logger.info(f"Cancelling active timer {timer_entity} before restart")
-        hass.services.call("timer", "cancel", {"entity_id": timer_entity}) # <-- TODO confirm cancelling is necessary.
-        
-    # Start a new timer
+        hass.services.call("timer", "cancel", {"entity_id": timer_entity})
+
     hass.services.call("timer", "start", {"entity_id": timer_entity, "duration": duration})
     logger.info(f"Timer {timer_entity} (re)started for {duration}")
 
@@ -144,7 +140,6 @@ def start_idle_timer(timer_entity, duration_sec):
 # ----------------- GET SUNRISE/SUNSET TIME AS DECIMAL 12.50 == 12:30 
 def get_sun_times():
     """Get today's sunrise and sunset times in local time."""
-    # sun_state = hass.states.get("sun.sun")
     sun_state = get_cached_state("sun.sun")
     if sun_state:
         utc_sunrise = sun_state.attributes.get("next_rising")
@@ -366,7 +361,6 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
                     )
     logger.info(f"Processing event. {current_time=}:{current_hour=}. {local_sunrise=}:{local_sunset=}. Processed Calculations {calculations}")
 
-    # default values here simulate motion sensor "on" and timer "active"
     room_motion_state = get_cached_state(binary_sensor).state if binary_sensor else "on" # default "on" for cases that don't need motion sensing. 
     idle_timer_state = get_cached_state(timer_entity).state if timer_entity else "active" # default "active" just lets the code run to turn on light. 
     
@@ -381,7 +375,6 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
             light_entity - the light object that will be acted upon.
         }
         """
-        # Motion detected - turn on lights and reset timer.
         light_entity = calculations.get("light_entity")
         brightness_pct = calculations.get("brightness_pct")
         color_temp_kelvin = calculations.get("color_temp_kelvin")
@@ -399,26 +392,3 @@ else:
     logger.info(f" Lux {lux_value} > {lux_max}, Skipping Light Activation")
 
 STATE_CACHE.clear()
-# FOR CONSIDERATION: 
-"""
-alias: Kitchen Motion Lighting 2.7 (Turn ON)
-description: Turns on kitchen lights adaptively on motion, with periodic timer refresh
-triggers:
-  - entity_id: binary_sensor.kitchen_nightlight_005_motion
-    from: "off"
-    to: "on"
-    id: kitchen_motion_activate
-    trigger: state
-  - entity_id: binary_sensor.kitchen_nightlight_005_motion
-    for: "00:01:00"  # Check every minute while motion continues
-    to: "on"
-    id: kitchen_motion_sustained
-    trigger: state
-  - platform: time_pattern
-    minutes: "/2"  # Every 2 minutes
-    id: periodic_timer_check
-    condition:
-      - condition: state
-        entity_id: binary_sensor.kitchen_nightlight_005_motion
-        state: "on"
-"""
