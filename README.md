@@ -136,5 +136,13 @@ timer:
 - configure your automations adjusting passed in params. 
 
 
+
+# ☕ Support My Work
+Optional - but highly appreciated. 
+
+[![CashApp](https://img.shields.io/badge/CashApp-%24JakeAdams-green?style=for-the-badge)](https://cash.app/$artchecks)
+[![Venmo](https://img.shields.io/badge/Venmo-@jakeAdams32-blue?style=for-the-badge)](https://venmo.com/jacob-adams-32)
+
 ## License
 This project is licensed under the Prosperity Public License 3.0.0 License. See `LICENSE` for details.
+
