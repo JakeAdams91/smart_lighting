@@ -18,7 +18,7 @@ Input Parameters:
 - motion_source: The motion sensor that triggered this automation
 - nightlights: List of nightlight configurations, each containing:
   * light: Light entity to control
-  * motion_sensor: Binary sensor for motion detection
+  * binary_sensor: Binary sensor for motion detection
   * lux_sensor: Illuminance sensor for ambient light detection
   * lux_threshold: Optional custom lux threshold
 - light: Single light entity (when not using nightlights list)
@@ -92,18 +92,18 @@ def get_lux_value(sensor_entity):
         return 0
 
 
-def is_motion_active(motion_sensor):
+def is_motion_active(binary_sensor):
     """Safely check if motion is detected."""
-    if not motion_sensor:
+    if not binary_sensor:
         return False
         
-    motion_state = get_cached_state(motion_sensor)
+    motion_state = get_cached_state(binary_sensor)
     if not motion_state:
-        logger.debug(f"Motion sensor {motion_sensor} not found")
+        logger.debug(f"Motion sensor {binary_sensor} not found")
         return False
         
     if motion_state.state in ('unavailable', 'unknown'):
-        logger.debug(f"Motion sensor {motion_sensor} is {motion_state.state}")
+        logger.debug(f"Motion sensor {binary_sensor} is {motion_state.state}")
         return False
         
     return motion_state.state == "on"
@@ -332,21 +332,21 @@ if nightlights is not None:
     # This ensures we always have at least dim lights on anywhere if motion is detected
     if not forced_dim:  # Only do this check when we're not in forced_dim mode
         for nightlight in nightlights:
-            motion_sensor = nightlight.get("motion_sensor")
-            if is_motion_active(motion_sensor):
+            binary_sensor = nightlight.get("binary_sensor")
+            if is_motion_active(binary_sensor):
                 any_motion_active = True
-                logger.info(f"Motion active in the house (sensor: {motion_sensor})")
+                logger.info(f"Motion active in the house (sensor: {binary_sensor})")
                 break
     
     # Second pass: Process each light
     for nightlight in nightlights:
         light_entity = nightlight.get("light")
-        motion_sensor = nightlight.get("motion_sensor")
+        binary_sensor = nightlight.get("binary_sensor")
         lux_sensor = nightlight.get("lux_sensor")
         lux_threshold = nightlight.get("lux_threshold", lux_threshold)
         
         # Check if we have all required data
-        if not all([light_entity, motion_sensor, lux_sensor]):
+        if not all([light_entity, binary_sensor, lux_sensor]):
             logger.warning(f"Missing required data for nightlight: {light_entity}")
             continue
         
@@ -359,13 +359,13 @@ if nightlights is not None:
             continue
         
         # Handle motion state for this specific nightlight
-        motion_active = is_motion_active(motion_sensor)
+        motion_active = is_motion_active(binary_sensor)
         
         # *** Key logic change ***
         # If we're in forced_dim mode, we only want to dim the specific light that triggered the automation
         if forced_dim:
             # Only dim this specific light if it's the one that triggered the motion_cleared event
-            if motion_source == motion_sensor:
+            if motion_source == binary_sensor:
                 logger.info(f"Motion cleared for {light_entity}, dimming to {settings['brightness_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 

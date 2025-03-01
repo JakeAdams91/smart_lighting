@@ -31,5 +31,5 @@ actions:
       nightlight_entity: light.livingroom_led_light_strip_001_light #OPTIONAL: select a specific light/light group to turn on at night.
       nightlight_brightness_pct: 25 # OPTIONAL: define selected nightlight brightness %.
       transition: 0.75
-    action: python_script.smart_light_control
+    action: python_script.smart_light_controller
 mode: restart

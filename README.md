@@ -69,11 +69,21 @@ This repository provides Home Assistant automation scripts for managing **smart 
 
 ## How It Works
 
+### **Smart Light Controller**
+
+1. If **motion is detected** and **ambient illuminance is below the threshold**, the light turns on.
+2. The brightness dynamically scales based on time of day.
+3. The color temp (warm ambers - cool whites) adjusts based on time of day.
+4. Lights auto-shut off after no motion detected for specified time.
+5. You can set a specific light to come on at night as a night light.
+
 ### **Nightlight Activation**
 
 1. If **motion is detected** and **ambient illuminance is below the threshold**, the light turns on.
-2. The brightness dynamically scales based on lux readings.
-3. When motion stops, the light dims before turning off completely after a set duration.
+2. The brightness dynamically scales based on time of day.
+3. The color temp (warm ambers - cool whites) adjusts based on time of day.
+4. After the sensor clears, light returns to dimmed setting
+5. Lights auto-shut off after no motion detected for specified time.
 
 ### **Override Functionality**
 
