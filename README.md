@@ -33,15 +33,16 @@ This repository provides Home Assistant automation scripts for managing **smart 
 
 - Home Assistant installed and running.
 - Motion sensors and smart lights integrated with Home Assistant.
-- helpers configured. (timers, booleans, etc.)
-- Python Scripts enabled in Home Assistant (`python_script:` must be included in `configuration.yaml`).
+- `input_number` helpers configured for custom illuminance thresholds.
+- **Python Scripts enabled** in Home Assistant (`python_script:` must be included in `configuration.yaml`).
+- **Required Helpers Created** (see Configuration section).
 
 ### **Installation**
 
 1. **Clone the repository**:
    ```sh
-   git clone https://github.com/JakeAdams91/smart_lighting.git
-   cd smart_lighting
+   git clone https://github.com/yourusername/smart-lighting-automation.git
+   cd smart-lighting-automation
    ```
 
 2. **Enable Python Scripts in Home Assistant**:
@@ -63,9 +64,48 @@ This repository provides Home Assistant automation scripts for managing **smart 
 
 ### **Configuration**
 
-- Open **Home Assistant UI** → **Settings** → **Automations & Scripts**.
-- Locate the imported scripts.
-- Create Automations
+To properly use the automation scripts, you must define the following **helpers** in `configuration.yaml`:
+
+#### **Input Text (For Automation Overrides)**
+Each automation override requires an **input_text** entity to store a comma separated list of the automations it deactivated. The format should be:
+```yaml
+input_text:
+  override_<your_room>_automations:
+    name: "Override for <Your Room> (or any other descriptive name)"
+    max: 255
+```
+
+#### **Input Boolean (For Override Toggle)**
+Each override must have an **input_boolean** to toggle manual control:
+```yaml
+input_boolean:
+  override_<your_room>_toggle:
+    name: "Override Toggle for <Your Room> (or any other descriptive name)"
+```
+
+#### **Timers (For Automations & Overrides)**
+- The **Smart Light Controller** requires a **timer for each room/area** you plan to automate this lends you flexibility to say, define your kitchen to turn off after 5 minutes no activity while your game room does so in 30, and so forth.
+- The **Nightlight Controller** requires **at least one timer**.
+- The **Automation Override** requires **a timer for each room/area**.
+
+Example Timer Configuration:
+```yaml
+timer:
+  livingroom_idle_timer:
+    name: "Living Room Idle Timer"
+    restore: true
+
+  kitchen_idle_timer:
+    name: "Kitchen Idle Timer"
+    restore: true
+
+  override_{yourValue}_timer: # NOTE - currently hardcoded to expect override_{}_timer. 
+    # I will patch to give you full naming control. but for now, the automation override variables MUST CONFORM TO NAMING STANDARD. override_{}_ ...
+    name: "Descriptive name"
+    restore: true
+```
+
+> **Note:** Replace `<your_room>` with the actual room name in your setup. Each automated area should have its own `input_text`, `input_boolean`, and `timer`.
 
 ## How It Works
 
@@ -96,22 +136,6 @@ This repository provides Home Assistant automation scripts for managing **smart 
 - Modify automation triggers to include additional sensors or conditions.
 - configure your automations adjusting passed in params. 
 
-## Roadmap
-
-- **Scene integration:** Sync lighting with Home Assistant scenes.
-- **Time-based adjustments:** Modify brightness and color temperature based on time of day.
-- **Voice assistant support:** Enable Alexa/Google Assistant control for automation overrides.
-
-## Contributing
-
-Contributions are welcome! If you'd like to improve the automations, feel free to fork the repository and submit a pull request.
-
-### **To contribute:**
-
-1. Fork the repository.
-2. Create a new branch (`feature-branch-name`).
-3. Make changes and commit them.
-4. Push to your fork and open a pull request.
 
 ## License
 This project is licensed under the Prosperity Public License 3.0.0 License. See `LICENSE` for details.
