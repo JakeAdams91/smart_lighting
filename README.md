@@ -138,7 +138,7 @@ timer:
 
 
 # ☕ Support My Work
-Optional - but highly appreciated. 
+Optional - but highly appreciated
 
 [![CashApp](https://img.shields.io/badge/CashApp-%24JakeAdams-green?style=for-the-badge)](https://cash.app/$artchecks)
 [![Venmo](https://img.shields.io/badge/Venmo-@jakeAdams32-blue?style=for-the-badge)](https://venmo.com/jacob-adams-32)

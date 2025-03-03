@@ -1,4 +1,5 @@
 venv
+demos
 automations.yaml
 configuration.yaml
 sensor_controller.py

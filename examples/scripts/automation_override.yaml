@@ -1,17 +1,19 @@
 alias: Automation Override
-description: Temporarily disables automation and sets lighting for Rec Room.
+description: Temporarily disables automation and sets lighting/scenes instead.
 fields:
   override_id:
-    description: Unique identifier for override mode.
-    example: livingroom_movie
-  scene_id:
-    description: Scene to activate during override.
-    example: scene.livingroom_movie_mode
+    description: Unique identifier string for override mode.
+    example: livingroom
+  scenes:
+    description: List of Scenes to activate during override. list of strings
+    example: scene.livingroom_movie_night, scene.livingroom_backlight_tv
+    default: []
   automation_ids:
-    description: Comma-separated list of automations to disable.
+    description: list of automations to disable.
     example: >-
-      automation.example_smart_lighting_on,
-      automation.example_smart_lighting_off
+      automation.livingroom_motion_lighting_on,
+      automation.livingroom_motion_lighting_off
+    default: []
   lights:
     description: List of lights to enable and their config settings.
     example: |
@@ -21,6 +23,7 @@ fields:
       - entity_id: light.tv_backlight
         brightness: 60
         rgb_color: [0, 0, 255]
+    default: []
   duration:
     description: Time before restoring automations.
     example: "02:00:00"
@@ -30,14 +33,16 @@ fields:
 sequence:
   - variables:
       is_active: "{{ states[boolean_id].state }}"
-      is_activating: "{{ 1 if is_active == 'off' else 0 }}"
+      is_overriding: "{{ 1 if is_active == 'off' else 0 }}"
+      parsed_scenes: "{{ scenes | default([], true) }}"
+      parsed_lights: "{{ lights | default([], true) }}"
   - data:
       override_id: "{{ override_id }}"
-      scene_id: "{{ scene_id if scene_id else null }}"
       automation_ids: "{{ automation_ids }}"
-      lights: "{{ lights if lights else null }}"
+      scenes: "{{ parsed_scenes }}"
+      lights: "{{ parsed_lights }}"
       duration: "{{ duration }}"
-      is_activating: "{{ is_activating }}"
+      is_overriding: "{{ is_overriding }}"
     action: python_script.smart_light_override
   - data:
       entity_id: "{{ boolean_id }}"
