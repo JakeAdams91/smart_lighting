@@ -58,7 +58,8 @@ def refresh_state_cache(entity_ids=None):
 def deactivate_automations(automation_ids, persistant_list_entity):
     """ 
     receives list of automations entity id's
-        iterates over, and deactivates active automations. persists list in a input_select.
+        iterates over, and deactivates active automations. 
+        persists list of deactivated automations in a input_select.
     """
     active_automations = []
     for automation_id in automation_ids:
@@ -102,9 +103,10 @@ def activate_automations(persistant_list_entity):
         logger.error("Error restoring automations. {}".format(ex))
     
     try:
+        replace_options = ['placeholder']
         hass.services.call('input_select', 'set_options', {
             'entity_id': persistant_list,
-            'options': ['placeholder']
+            'options': replace_options
         })
     except Exception as ex:
         logger.error("Error clearing stored automation state. {}".format(ex))
