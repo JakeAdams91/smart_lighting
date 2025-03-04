@@ -72,18 +72,15 @@ def refresh_state_cache(entity_ids=None):
 def get_lux_value(sensor_entity):
     """Retrieve lux value from a illuminance sensor."""
     if not sensor_entity:
-        logger.debug("No lux sensor specified")
         return 0
         
     sensor_state = get_cached_state(sensor_entity)
     if not sensor_state or sensor_state.state in ('unknown', 'unavailable', 'None'):
-        logger.debug(f"Lux sensor {sensor_entity} unavailable or in invalid state: {sensor_state.state if sensor_state else 'None'}")
         return 0
     try:
         lux_value = float(sensor_state.state)
         return lux_value
     except (ValueError, TypeError):
-        logger.debug(f"Could not convert lux value '{sensor_state.state}' to number")
         return 0
 
 
@@ -94,10 +91,8 @@ def is_motion_active(binary_sensor):
         
     motion_state = get_cached_state(binary_sensor)
     if not motion_state:
-        logger.debug(f"Motion sensor {binary_sensor} not found")
         return False
     if motion_state.state in ('unavailable', 'unknown'):
-        logger.debug(f"Motion sensor {binary_sensor} is {motion_state.state}")
         return False
         
     return motion_state.state == "on"
@@ -118,7 +113,6 @@ def start_idle_timer(timer_entity, duration_sec):
     Checks current state and restarts if necessary.
     """
     if not timer_entity:
-        logger.info("No timer entity specified, skipping timer")
         return
         
     timer_state = hass.states.get(timer_entity)
@@ -130,11 +124,9 @@ def start_idle_timer(timer_entity, duration_sec):
     duration = seconds_to_hms(duration_sec)
     
     if current_state in ["active", "paused"]:
-        logger.info(f"Cancelling active timer {timer_entity} before restart")
         hass.services.call("timer", "cancel", {"entity_id": timer_entity})
 
     hass.services.call("timer", "start", {"entity_id": timer_entity, "duration": duration})
-    logger.info(f"Timer {timer_entity} (re)started for {duration}")
 
 
 # ----------------- GET SUNRISE/SUNSET TIME AS DECIMAL 12.50 == 12:30 
@@ -151,7 +143,6 @@ def get_sun_times():
             sunrise_float = sunrise_dt.hour + (sunrise_dt.minute / 60)  # Convert to decimal hour
             sunset_float = sunset_dt.hour + (sunset_dt.minute / 60)
 
-            logger.info(f"Sunrise: {sunrise_float:.2f} | Sunset: {sunset_float:.2f}")
             return sunrise_float, sunset_float
     return 7.0, 18.0  # Fallback sunrise/sunset times.
 
@@ -305,11 +296,9 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
                 
             if brightness_changed or color_temp_changed:
                 hass.services.call("light", "turn_on", service_data)
-                logger.info(f"Updated {light_entity}: {brightness_pct}% brightness, {color_temp_kelvin}K")
         else:
             if current_state == "on":
                 hass.services.call("light", "turn_off", service_data)
-                logger.info(f"Turned OFF {light_entity}")
                 
         return True
     except Exception as e:
@@ -359,7 +348,6 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
                         nightlight_brightness_pct=nightlight_brightness_pct,
                         nightlight_entity=nightlight_entity
                     )
-    logger.info(f"Processing event. {current_time=}:{current_hour=}. {local_sunrise=}:{local_sunset=}. Processed Calculations {calculations}")
 
     room_motion_state = get_cached_state(binary_sensor).state if binary_sensor else "on" # default "on" for cases that don't need motion sensing. 
     idle_timer_state = get_cached_state(timer_entity).state if timer_entity else "active" # default "active" just lets the code run to turn on light. 
@@ -387,8 +375,5 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
         if idle_timer_state in ["idle", "paused"]:
             affected_light = calculations.get("light_entity")
             apply_light_settings(light_entity=affected_light, brightness_pct=0, transition=1.5, color_temp_kelvin=None)
-            logger.info("No motion detected and timer finished - Turning lights OFF")
-else:
-    logger.info(f" Lux {lux_value} > {lux_max}, Skipping Light Activation")
 
 STATE_CACHE.clear()

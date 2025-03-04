@@ -75,19 +75,16 @@ def refresh_state_cache(entity_ids=None):
 def get_lux_value(sensor_entity):
     """Retrieve lux value from a illuminance sensor."""
     if not sensor_entity:
-        logger.debug("No lux sensor specified")
         return 0
         
     sensor_state = get_cached_state(sensor_entity)
     if not sensor_state or sensor_state.state in ('unknown', 'unavailable', 'None'):
-        logger.debug(f"Lux sensor {sensor_entity} unavailable or in invalid state: {sensor_state.state if sensor_state else 'None'}")
         return 0
         
     try:
         lux_value = float(sensor_state.state)
         return lux_value
     except (ValueError, TypeError):
-        logger.debug(f"Could not convert lux value '{sensor_state.state}' to number")
         return 0
 
 
@@ -98,11 +95,9 @@ def is_motion_active(binary_sensor):
         
     motion_state = get_cached_state(binary_sensor)
     if not motion_state:
-        logger.debug(f"Motion sensor {binary_sensor} not found")
         return False
         
     if motion_state.state in ('unavailable', 'unknown'):
-        logger.debug(f"Motion sensor {binary_sensor} is {motion_state.state}")
         return False
         
     return motion_state.state == "on"
@@ -123,7 +118,6 @@ def start_idle_timer(timer_entity, duration_sec):
     Checks current state and restarts if necessary.
     """
     if not timer_entity:
-        logger.info("No timer entity specified, skipping timer")
         return
         
     timer_state = hass.states.get(timer_entity)
@@ -135,11 +129,9 @@ def start_idle_timer(timer_entity, duration_sec):
     duration = seconds_to_hms(duration_sec)
     
     if current_state in ["active", "paused"]:
-        logger.info(f"Cancelling active timer {timer_entity} before restart")
         hass.services.call("timer", "cancel", {"entity_id": timer_entity})
         
     hass.services.call("timer", "start", {"entity_id": timer_entity, "duration": duration})
-    logger.info(f"Timer {timer_entity} (re)started for {duration}")
 
 
 # ----------------- GET SUNRISE/SUNSET TIME AS DECIMAL 12.50 == 12:30 
@@ -155,8 +147,6 @@ def get_sun_times():
 
             sunrise_float = sunrise_dt.hour + (sunrise_dt.minute / 60)  # Convert to decimal hour
             sunset_float = sunset_dt.hour + (sunset_dt.minute / 60)
-
-            logger.info(f"Sunrise: {sunrise_float:.2f} | Sunset: {sunset_float:.2f}")
             return sunrise_float, sunset_float
     return 7.0, 18.0  # Fallback sunrise/sunset times.
 
@@ -269,11 +259,9 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
                 
             if brightness_changed or color_temp_changed:
                 hass.services.call("light", "turn_on", service_data)
-                logger.info(f"Updated {light_entity}: {brightness_pct}% brightness, {color_temp_kelvin}K")
         else:
             if current_state == "on":
                 hass.services.call("light", "turn_off", service_data)
-                logger.info(f"Turned OFF {light_entity}")
                 
         return True
     except Exception as e:
@@ -312,13 +300,10 @@ settings = calculate_settings_by_time(
     color_temp_high=color_temp_high,
     color_temp_low=color_temp_low
 )
-logger.info(f"Time mode: {settings['mode']}, Brightness: {settings['brightness_pct']}%, Boosted: {settings['boosted_pct']}%")
 
 any_motion_active = False
 
 if nightlights is not None:
-    logger.info(f"Processing {len(nightlights)} nightlights")
-    
     # First pass: Check if ANY motion is active at all
     # This ensures we always have at least dim lights on anywhere if motion is detected
     if not forced_dim:  # Only do this check when we're not in forced_dim mode
@@ -326,7 +311,6 @@ if nightlights is not None:
             binary_sensor = nightlight.get("binary_sensor")
             if is_motion_active(binary_sensor):
                 any_motion_active = True
-                logger.info(f"Motion active in the house (sensor: {binary_sensor})")
                 break
     
     # Second pass: Process each light
@@ -345,7 +329,6 @@ if nightlights is not None:
         lux_value = get_lux_value(lux_sensor)
         if lux_value >= lux_threshold:
             # Too bright, turn off light
-            logger.info(f"Lux level {lux_value} above threshold {lux_threshold} for {light_entity}, turning off")
             apply_light_settings(light_entity=light_entity, brightness_pct=0, color_temp_kelvin=settings["color_temp_kelvin"], transition=transition)
             continue
         
@@ -356,23 +339,18 @@ if nightlights is not None:
         if forced_dim:
             # Only dim this specific light if it's the one that triggered the motion_cleared event
             if motion_source == binary_sensor:
-                logger.info(f"Motion cleared for {light_entity}, dimming to {settings['brightness_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=settings['brightness_pct'], 
                     color_temp_kelvin=settings["color_temp_kelvin"], 
                     transition=transition
                 )
-            # Otherwise leave this light in its current state
-            else:
-                logger.info(f"Skipping {light_entity} - not the light that triggered motion cleared event")
         else:
             # Normal motion processing mode:
             # 1. Boost lights with active motion
             # 2. Ensure all other lights are at least dimmed if any motion is active anywhere
             if motion_active:
                 # This light's motion sensor is active, boost it
-                logger.info(f"Motion active for {light_entity}, boosting to {settings['boosted_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=settings["boosted_pct"], 
@@ -381,7 +359,6 @@ if nightlights is not None:
                 )
             elif any_motion_active:
                 # There's motion elsewhere in the house, so this light should be at least dimmed
-                logger.info(f"Motion elsewhere in house, ensuring {light_entity} is dimmed to {settings['brightness_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=settings["brightness_pct"], 
@@ -390,7 +367,6 @@ if nightlights is not None:
                 )
             else:
                 # No motion anywhere, set to default brightness
-                logger.info(f"No motion anywhere, setting {light_entity} to {settings['brightness_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=settings["brightness_pct"], 
@@ -400,7 +376,6 @@ if nightlights is not None:
 
 # Process single light if no nightlights list
 else:
-    logger.info("Processing single light mode")
     if not light_entity:
         logger.error("No light entity provided")
     else:
@@ -410,7 +385,6 @@ else:
             lux_value = get_lux_value(lux_sensor)
             if lux_value >= lux_threshold:
                 # Too bright, turn off light
-                logger.info(f"Lux level {lux_value} above threshold {lux_threshold}, turning off {light_entity}")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=0, 
@@ -425,7 +399,6 @@ else:
         # If the calling automation is for motion detection (not forced dim)
         if not stop_processing:
             if not forced_dim:
-                logger.info(f"Motion detected, setting {light_entity} to boosted brightness {settings['boosted_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=settings["boosted_pct"], 
@@ -434,7 +407,6 @@ else:
                 )
             else:
                 # Dim the light (motion cleared)
-                logger.info(f"Motion cleared, dimming {light_entity} to {settings['brightness_pct']}%")
                 apply_light_settings(
                     light_entity=light_entity, 
                     brightness_pct=settings["brightness_pct"], 
@@ -445,7 +417,5 @@ else:
 # Start idle timer if provided
 if timer_entity:
     start_idle_timer(timer_entity, idle_timeout_sec)
-    
-logger.info(f"Nightlight control complete for {motion_source if motion_source else 'all lights'}")
 
 STATE_CACHE.clear()

@@ -55,7 +55,7 @@ def refresh_state_cache(entity_ids=None):
 
 # -------------------- AUTOMATIONS
 # ---------------------------------------
-def deactivate_automations(automation_ids, persistant_list_entity):
+def deactivate_automations(automation_ids, persistent_list_entity):
     """ 
     receives list of automations entity id's
         iterates over, and deactivates active automations. 
@@ -71,77 +71,76 @@ def deactivate_automations(automation_ids, persistant_list_entity):
                     active_automations.append(automation_id)
                 # Disable automation
                 hass.services.call('automation', 'turn_off', {'entity_id': automation_id})
-                logger.info("Disabled automation. {}".format(automation_id))
             else:
                 logger.warning("Warning: Automation entity not found. {}".format(automation_id))
         except Exception as ex:
             logger.error("Error disabling automation {} {}".format(automation_id, ex))
-    
-    try: # save list of automations that'd been disabled.
-        logger.info("storing deactivated automations in input_select. {}".format(active_automations))
-        hass.services.call('input_select', 'set_options', {
-            'entity_id': persistant_list_entity,
-            'options': active_automations
-        })
-    except Exception as ex:
-        logger.error("Error storing automation state {}".format(ex))
+    if active_automations:
+        try: # save list of automations that'd been disabled.
+            hass.services.call('input_select', 'set_options', {
+                'entity_id': persistent_list_entity,
+                'options': active_automations
+            })
+            # Immediately select the first valid option ( prevents warnings and issues )
+            hass.services.call('input_select', 'select_option', {
+                'entity_id': persistent_list_entity,
+                'option': active_automations[0]
+            })
+        except Exception as ex:
+            logger.error("Error storing deactivated automations. {}".format(ex))
 
 
-def activate_automations(persistant_list_entity):
+def activate_automations(persistent_list_entity):
     try:
-        logger.info("persistant_list_entity: {}".format(persistant_list_entity))
-        persistant_entity = get_cached_state(persistant_list_entity)
-        logger.info("persistant_entity: {}".format(persistant_entity))
+        persistant_entity = get_cached_state(persistent_list_entity)
         persistant_list = persistant_entity.attributes.get('options', [])
-        logger.info("input select persistant list {}".format(persistant_list))
         if persistant_list:
             for automation_id in persistant_list:
                 if automation_id:
                     hass.services.call('automation', 'turn_on', {'entity_id': automation_id})
-                    logger.info("Restored automation. {}".format(automation_id))
     except Exception as ex:
         logger.error("Error restoring automations. {}".format(ex))
     
     try:
         replace_options = ['placeholder']
         hass.services.call('input_select', 'set_options', {
-            'entity_id': persistant_list,
+            'entity_id': persistent_list_entity,
             'options': replace_options
         })
+        # Immediately select the first valid option ( prevents warnings and issues )
+        hass.services.call('input_select', 'select_option', {
+            'entity_id': persistent_list_entity,
+            'option': replace_options[0]
+        })
     except Exception as ex:
-        logger.error("Error clearing stored automation state. {}".format(ex))
+        logger.error("Error clearing stored automations. {}".format(ex))
 
 
 # -------------------- SCENES
 # ---------------------------------------
 def activate_scenes(scenes):
     """receives list of strings, scene_ids, iterates over and activates each scenes"""
-    for scene in scenes:
+    for entity_id in scenes:
         try:
-            scene_state = get_cached_state(scene)
+            scene_state = get_cached_state(entity_id)
             if scene_state is not None:
-                hass.services.call('scene', 'turn_on', {'entity_id': scene})
+                hass.services.call('scene', 'turn_on', {'entity_id': entity_id})
             else:
-                logger.warning("Warning: Scene entity not found. {}".format(scene))
+                logger.warning("Warning: Scene entity not found. {}".format(entity_id))
         except Exception as ex:
-            logger.error("Error activating scene {} {}".format(scene, ex))
+            logger.error("Error activating scene {} {}".format(entity_id, ex))
 
 
 def deactivate_scenes(scenes):
-    for scene in scenes:
-        entity_id = scene.get('entity_id')
-        if not entity_id:
-            continue
+    for entity_id in scenes:
         try:
             scene_state = get_cached_state(entity_id)
-            if not scene_state:
-                logger.warning("Warning: Scene entity not found. {}".format(scene))
-                continue
-        
-            hass.services.call('scene', 'turn_off', {'entity_id': scene})
-                
+            if scene_state is not None:
+                hass.services.call('scene', 'turn_off', {'entity_id': entity_id})
+            else:
+                logger.warning("Warning: Scene entity not found. {}".format(entity_id))
         except Exception as ex:
-            logger.error("Error activating scene {} {}".format(scene, ex))
+            logger.error("Error deactivating scene {} {}".format(entity_id, ex))
 
 
 # -------------------- LIGHTS
@@ -152,7 +151,6 @@ def activate_lights(lights):
         entity_id = light.get('entity_id')
         if not entity_id:
             continue
-            
         try:
             light_state = get_cached_state(entity_id)
             if light_state is None:
@@ -185,12 +183,10 @@ def deactivate_lights(lights):
             continue
         try:
             light_state = get_cached_state(entity_id)
-            if not light_state:
-                logger.warning("Warning: Light entity not found. {}".format(light))
-                continue
-            
-            hass.services.call('light', 'turn_off', {'entity_id': entity_id})
-            
+            if light_state is not None:
+                hass.services.call('light', 'turn_off', {'entity_id': entity_id})
+            else:
+                logger.warning("Warning: Light entity not found. {}".format(entity_id))            
         except Exception as ex:
             logger.error("Error turning off light {} {}".format(entity_id,ex))
 
@@ -222,26 +218,27 @@ def cancel_duration_timer(timer_entity):
 # Get parameters from data 
 override_id = data.get('override_id', 'default')
 automation_ids = data.get('automation_ids', [])
-scenes = data.get('scenes') or []
-lights = data.get('lights') or []
+scenes = data.get('scenes') or [] # scenes must be a list of Strings, just like automation_ids
+lights = data.get('lights') or [] # list of objects containing light entity_id, brightness_pct, color_temp_kelvin/color_rgb
 duration = data.get('duration', None)
-is_overriding = data.get('is_overriding', 1) # TODO - rename param to is_overriding.. note breaking change.
+is_overriding = data.get('is_overriding', 1)
 timer_entity = f"timer.override_{override_id}_timer"
-persistant_list_entity = f"input_select.override_{override_id}_automations"
+persistent_list_entity = f"input_select.override_{override_id}_automations"
 
+# prep cache
+entities_to_cache = automation_ids + [timer_entity, persistent_list_entity]
 if isinstance(automation_ids, str): # convert automation_ids to list if received as string.
     automation_ids = [id.strip() for id in automation_ids.split(',') if id.strip()]
-# load cache
-entities_to_cache = automation_ids + [timer_entity, persistant_list_entity]
 if scenes:
-    for scene in scenes:
-        entities_to_cache.append(scene)
+    for scene_entity_id in scenes:
+        entities_to_cache.append(scene_entity_id)
 if lights:
     for light in lights:
-        light_entity = light.get('entity_id')
-        if light_entity:
-            entities_to_cache.append(light_entity)
-    
+        light_entity_id =  light.get("entity_id")
+        if light_entity_id:
+            entities_to_cache.append(light_entity_id)
+        
+# load cache
 for entity_id in entities_to_cache:
     get_cached_state(entity_id)
 
@@ -252,19 +249,13 @@ if is_overriding:
     # OVERRIDE AUTOMATIONS
     # --------------------------------------------------
     logger.info(f"Activating override mode: {override_id}")
-    deactivate_automations(automation_ids, persistant_list_entity)
-    
+    deactivate_automations(automation_ids, persistent_list_entity)
     if scenes:
         activate_scenes(scenes)
-    elif lights:
+    if lights:
         activate_lights(lights)
-    else:
-        logger.error("Error - received neither scenes nor lights.")
-
     if duration:
         set_duration_timer(timer_entity, duration)
-    
-    logger.info("Override mode activated successfully")
 
 else:
     # --------------------------------------------------
@@ -275,10 +266,7 @@ else:
         deactivate_scenes(scenes)
     if lights:
         deactivate_lights(lights)
-    
     cancel_duration_timer(timer_entity)
-    activate_automations(persistant_list_entity)
-    
-    logger.info("Override mode deactivated successfully")
+    activate_automations(persistent_list_entity)
 
 STATE_CACHE.clear()
