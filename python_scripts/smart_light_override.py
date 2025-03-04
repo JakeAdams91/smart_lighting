@@ -77,14 +77,10 @@ def deactivate_automations(automation_ids, persistent_list_entity):
             logger.error("Error disabling automation {} {}".format(automation_id, ex))
     if active_automations:
         try: # save list of automations that'd been disabled.
+            list_options = ['placeholder'] + active_automations # keeping placeholder in 0 index wi;l heopfully stop the warnings
             hass.services.call('input_select', 'set_options', {
                 'entity_id': persistent_list_entity,
-                'options': active_automations
-            })
-            # Immediately select the first valid option ( prevents warnings and issues )
-            hass.services.call('input_select', 'select_option', {
-                'entity_id': persistent_list_entity,
-                'option': active_automations[0]
+                'options': list_options
             })
         except Exception as ex:
             logger.error("Error storing deactivated automations. {}".format(ex))
@@ -96,7 +92,7 @@ def activate_automations(persistent_list_entity):
         persistant_list = persistant_entity.attributes.get('options', [])
         if persistant_list:
             for automation_id in persistant_list:
-                if automation_id:
+                if automation_id and automation_id != 'placeholder':
                     hass.services.call('automation', 'turn_on', {'entity_id': automation_id})
     except Exception as ex:
         logger.error("Error restoring automations. {}".format(ex))
@@ -106,11 +102,6 @@ def activate_automations(persistent_list_entity):
         hass.services.call('input_select', 'set_options', {
             'entity_id': persistent_list_entity,
             'options': replace_options
-        })
-        # Immediately select the first valid option ( prevents warnings and issues )
-        hass.services.call('input_select', 'select_option', {
-            'entity_id': persistent_list_entity,
-            'option': replace_options[0]
         })
     except Exception as ex:
         logger.error("Error clearing stored automations. {}".format(ex))
