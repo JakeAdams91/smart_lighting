@@ -32,7 +32,7 @@ This repository provides Home Assistant automation scripts for managing **smart 
 
 - Home Assistant installed and running.
 - Motion sensors and smart lights integrated with Home Assistant.
-- `input_number` helpers configured for custom illuminance thresholds.
+- `input_select, input_boolean, and timer` helpers configured for custom illuminance thresholds.
 - **Python Scripts enabled** in Home Assistant (`python_script:` must be included in `configuration.yaml`).
 - **Required Helpers Created** (see Configuration section).
 
@@ -65,13 +65,14 @@ This repository provides Home Assistant automation scripts for managing **smart 
 
 To properly use the automation scripts, you must define the following **helpers** in `configuration.yaml`:
 
-#### **Input Text (For Automation Overrides)**
-Each automation override requires an **input_text** entity to store a comma separated list of the automations it deactivated. The format should be:
+#### **Input Select (For Automation Overrides)**
+Each automation override requires an **input_select** entity, use 'placeholder' as the default options value. Script overwrites the options list with list of automations it deactivated, as a way to persist the list(array) into memory:
 ```yaml
-input_text:
+input_select:
   override_<your_room>_automations:
     name: "Override for <Your Room> (or any other descriptive name)"
-    max: 255
+    options: 
+      - placeholder
 ```
 
 #### **Input Boolean (For Override Toggle)**
@@ -103,8 +104,8 @@ timer:
     name: "Descriptive name"
     restore: true
 ```
-
-> **Note:** Replace `<your_room>` with the actual room name in your setup. Each automated area should have its own `input_text`, `input_boolean`, and `timer`.
+> **Note:** The override functionality requires the input_boolean, input_select, and timer. the smart lighting and nightlight just requires a timer. 
+> **Note:** Replace `<your_room>` with the actual room name in your setup. Each automated area should have its own `input_text`, `input_boolean`, and `timer`. 
 
 ## How It Works
 

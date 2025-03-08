@@ -77,7 +77,7 @@ def deactivate_automations(automation_ids, persistent_list_entity):
             logger.error("Error disabling automation {} {}".format(automation_id, ex))
     if active_automations:
         try: # save list of automations that'd been disabled.
-            list_options = ['placeholder'] + active_automations # keeping placeholder in 0 index wi;l heopfully stop the warnings
+            list_options = ['placeholder'] + active_automations # keeping 'placeholder' in 0 index will hopefully stop the warnings
             hass.services.call('input_select', 'set_options', {
                 'entity_id': persistent_list_entity,
                 'options': list_options
