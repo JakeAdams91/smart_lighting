@@ -3,14 +3,14 @@ description: Turns off Living Room lights after idle timeout if no motion is det
 triggers:
   - event_type: timer.finished
     event_data:
-      entity_id: timer.livingroom_idle_timer # needs created in configuration.yaml
+      entity_id: timer.livingroom_idle_timer # <-- needs created in configuration.yaml
     id: livingroom_idle_timeout_expired
     trigger: event
 conditions:
   - condition: state
     entity_id: binary_sensor.livingroom_motionsensor_occupancy
     state: "off"
-actions: # you could route your call through the python_script and it will successfully turn off the lights, but thats overkill.
+actions: # you could route your call through the python_script, just set brightness_pct = 0 and it will successfully turn off the lights, but thats overkill.
   - target:
       entity_id: light.living_room_lights 
     data:

@@ -184,18 +184,21 @@ def get_dynamic_transitions(local_sunrise:float, local_sunset:float):
 
     # sets range, 0.5 - 2hrs for evening, 0.3 - 1hr for twilight
     evening_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.0)
-    twilight_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .3, 1.0)
+    twilight_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 1.0)
 
+    morning_start = local_sunrise - twilight_offset
+    morning_end = local_sunrise + twilight_offset
     evening_start = local_sunset
     evening_end = evening_start + evening_offset  # e.g., ~ sunset + 2.0 (winter) or +0.5 (summer)
 
     twilight_start = evening_end
     twilight_end = twilight_start + twilight_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
 
+
     return {
-        "morning_start": local_sunrise - 1, # just gonna hard-code mornings. 
-        "morning_end":   local_sunrise + 2, # I don't want extremely bright white the first 2 hours of sunrise. 
-        "day_start":     local_sunrise + 2, # so i am going to ease us all into it.
+        "morning_start": morning_start,
+        "morning_end":   morning_end,
+        "day_start":     morning_end, # daystart is morning end.
         "day_end":       local_sunset,
         "evening_start": evening_start,
         "evening_end":   evening_end,
@@ -324,8 +327,8 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
 # --------------------- MAIN LOGIC EXECUTION
 # ----------------------------------------------
 # Get parameters from data
-MIN_DAYLIGHT=int(data.get("min_daylight", 9)) # higher min_daylight = longer transitions
-MAX_DAYLIGHT=int(data.get("max_daylight",14)) # shorter max_daylight = shorter transitions
+MIN_DAYLIGHT=int(data.get("min_daylight", 8))
+MAX_DAYLIGHT=int(data.get("max_daylight",16))
 motion_source = data.get("motion_source")
 nightlights = data.get("nightlights", None)
 light_entity = data.get("light")

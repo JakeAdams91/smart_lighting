@@ -5,3 +5,4 @@ configuration.yaml
 sensor_controller.py
 toggle_light.py
 turn_on_light.py
+explore_dynamic_transitions.py

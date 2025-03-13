@@ -159,33 +159,42 @@ def scale_offset(daylight_hours:float,
 
 
 def get_dynamic_transitions(local_sunrise:float, local_sunset:float):
-    """
-    Returns a dict of dynamic time boundaries for Evening, Twilight, etc.
-    All times are in 'decimal hour' format (e.g., 19.5 = 7:30 PM).
-    """
-    daylight_hours = local_sunset - local_sunrise
+	"""
+	Returns a dict of dynamic time boundaries for Evening, Twilight, etc.
+	All times are in 'decimal hour' format (e.g., 19.5 = 7:30 PM).
+	"""
+	daylight_hours = local_sunset - local_sunrise
 
-    # sets range, 0.5 - 2hrs for evening, 0.3 - 1hr for twilight
-    evening_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.0)
-    twilight_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .3, 1.0)
+	# sets range, 0.5 - 2hrs for evening, 0.3 - 1hr for twilight
+	morning_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .75, 1.0)
+	evening_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.75)
+	twilight_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.0)
 
-    evening_start = local_sunset
-    evening_end = evening_start + evening_offset  # e.g., ~ sunset + 2.0 (winter) or +0.5 (summer)
+	if daylight_hours > 14:
+		morning_start = local_sunrise
+		morning_end = local_sunrise + 2
+		evening_start = local_sunset - 1
+	else: 
+		morning_start = local_sunrise - morning_offset
+		morning_end = local_sunrise + morning_offset
+		evening_start = local_sunset
+	
+		
+	evening_end = local_sunset + evening_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
+	twilight_end = evening_end + twilight_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
 
-    twilight_start = evening_end
-    twilight_end = twilight_start + twilight_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
 
-    return {
-        "morning_start": local_sunrise - 1, # just gonna hard-code mornings. 
-        "morning_end":   local_sunrise + 2, # I don't want extremely bright white the first 2 hours of sunrise. 
-        "day_start":     local_sunrise + 2, # so i am going to ease us all into it.
-        "day_end":       local_sunset,
-        "evening_start": evening_start,
-        "evening_end":   evening_end,
-        "twilight_start": twilight_start,
-        "twilight_end":  twilight_end,
-        # Night will be everything after twilight_end until morning_start
-    }
+	return {
+		"morning_start": morning_start,
+		"morning_end":   morning_end,
+		"day_start":     morning_end,
+		"day_end":       evening_start,
+		"evening_start": evening_start,
+		"evening_end":   evening_end,
+		"twilight_start": evening_end,
+		"twilight_end":  twilight_end,
+		# Night will be everything after twilight_end until morning_start
+	}
 
 
 def calculate_settings_by_time(light_entity,
