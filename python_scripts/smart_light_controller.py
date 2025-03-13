@@ -49,7 +49,6 @@ Input Parameters:
 6. Applies lighting changes with transition effects
 """
 
-### Helper Functions ###
 # ------------------------ HELPER FUNCTIONS ----------------- 
 # ----------------- ENTITY CACHING | STATE MANAGEMENT -------
 STATE_CACHE = {}
@@ -84,20 +83,8 @@ def get_lux_value(sensor_entity):
         return 0
 
 
-def is_motion_active(binary_sensor):
-    """Safely check if motion is detected."""
-    if not binary_sensor:
-        return False
-        
-    motion_state = get_cached_state(binary_sensor)
-    if not motion_state:
-        return False
-    if motion_state.state in ('unavailable', 'unknown'):
-        return False
-        
-    return motion_state.state == "on"
-
 # ----------------- IDLE TIMER HANDLING
+# ----------------------------------------------
 def seconds_to_hms(seconds):
     """Convert seconds to a properly formatted time string 'HH:MM:SS'."""
     seconds = 0 if seconds < 0 else seconds
@@ -130,6 +117,7 @@ def start_idle_timer(timer_entity, duration_sec):
 
 
 # ----------------- GET SUNRISE/SUNSET TIME AS DECIMAL 12.50 == 12:30 
+# -----------------------------------------------------------------------
 def get_sun_times():
     """Get today's sunrise and sunset times in local time."""
     sun_state = get_cached_state("sun.sun")
@@ -148,91 +136,134 @@ def get_sun_times():
 
 
 # ----------------- CALC THE BRIGHTNESS/ COLOR TEMP BY TIME OF DAY.
+# ----------------------------------------------------------------------
+def scale_offset(daylight_hours:float, 
+                 min_daylight=9, max_daylight=14,
+                 min_offset=.3, max_offset=2):
+    """
+    Returns a dynamic offset (in hours) between [min_offset, max_offset],
+    depending on how short/long the day is.
+    
+    - If daylight_hours is near min_daylight (e.g. 10 hrs), 
+      this returns around max_offset (e.g. ~2.5 hrs).
+    - If daylight_hours is near max_daylight (e.g. 14 hrs),
+      this returns around min_offset (e.g. ~1.0 hr).
+    
+    Adjust the min_daylight, max_daylight, min_offset, max_offset 
+    values as desired for your location/latitude.
+    """
+    day_hours = max(min_daylight, min(daylight_hours, max_daylight))
+    ratio = (day_hours - min_daylight) / (max_daylight - min_daylight)
+    # We invert (1 - ratio) so that short days = bigger offsets, long days = smaller offsets
+    return min_offset + (max_offset - min_offset) * (1 - ratio)
+
+
+def get_dynamic_transitions(local_sunrise:float, local_sunset:float):
+	"""
+	Returns a dict of dynamic time boundaries for Evening, Twilight, etc.
+	All times are in 'decimal hour' format (e.g., 19.5 = 7:30 PM).
+	"""
+	daylight_hours = local_sunset - local_sunrise
+
+	# sets range, 0.5 - 2hrs for evening, 0.3 - 1hr for twilight
+	morning_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .75, 1.0)
+	evening_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.75)
+	twilight_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.0)
+
+	if daylight_hours > 14:
+		morning_start = local_sunrise
+		morning_end = local_sunrise + 2
+		evening_start = local_sunset - 1
+	else: 
+		morning_start = local_sunrise - morning_offset
+		morning_end = local_sunrise + morning_offset
+		evening_start = local_sunset
+	
+		
+	evening_end = local_sunset + evening_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
+	twilight_end = evening_end + twilight_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
+
+
+	return {
+		"morning_start": morning_start,
+		"morning_end":   morning_end,
+		"day_start":     morning_end,
+		"day_end":       evening_start,
+		"evening_start": evening_start,
+		"evening_end":   evening_end,
+		"twilight_start": evening_end,
+		"twilight_end":  twilight_end,
+		# Night will be everything after twilight_end until morning_start
+	}
+
+
 def calculate_settings_by_time(light_entity,
-                               current_hour:float, 
-                               local_sunrise:float, 
-                               local_sunset:float, 
-                               idle_timeout_day:int, 
-                               idle_timeout_evening:int, 
-                               idle_timeout_night:int,
-                               nightlight_brightness_pct:int,
+                               current_hour: float, 
+                               local_sunrise: float, 
+                               local_sunset: float, 
+                               idle_timeout_day: int, 
+                               idle_timeout_evening: int, 
+                               idle_timeout_night: int,
+                               nightlight_brightness_pct: int,
                                nightlight_entity):
     """
-    Params:
-        light_entity (Hass light object) - primary light, light group to update.
-        current_hour (float) - current time as a decimal point; e.g., 6:45 = 6.75
-        local_sunrise (float) - todays sunrise time as decimal point 
-        local_sunset (float) - todays sunset time as decimal point
-        idle_timeout_day (int) - 
-        idle_timeout_evening (int) - 
-        idle_timeout_night (int) -
-        nightlight_brightness_pct (int) -
-        nightlight_entity (Hass light object) - rooms nightlight if specified
-    Modes:
-        Morning:  1 hour before sunrise -> 2 hours after sunrise,
-        Day:      2 hour after sunrise -> sunset,
-        Evening:  sunset -> 2hours after sunset,
-        Twilight: 2 hours after sunset -> 3 hours after sunset
-        Night:    3 hours after sunset -> 1 hour before sunrise
-
-    Returns:
-        dictionary 
-        {
-            mode (str) 'night' or 'day' and such
-            brightness_pct (int) - the brightness to set the light
-            color_temp_kelvin (int) - the temperature to set the light
-            idle_timeout_sec (int) - timeout in seconds
-            light_entity - the light object that will be acted upon.
-        }
+    This version uses dynamic evening/twilight boundaries 
+    computed from day length.
     """
+    # Get dynamic transitions
+    transitions = get_dynamic_transitions(local_sunrise, local_sunset)
+
     time_modes = {
         "morning": {
-            "condition": lambda current_hour: local_sunrise - 1 <= current_hour < local_sunrise + 2,
-            "brightness": lambda: int(brightness_high * 0.75), # 75% brightness
-            "color_temp": lambda: int(color_temp_high * 0.65), # 65% color temp
-            "timeout": lambda: int(idle_timeout_day)/2,
+            "condition": lambda current_hour: transitions["morning_start"] <= current_hour < transitions["morning_end"],
+            "brightness": lambda: max(BRIGHTNESS_LOW,int(BRIGHTNESS_HIGH * 0.75)),
+            "color_temp": lambda: max(COLOR_TEMP_LOW,int(COLOR_TEMP_HIGH * 0.65)),
+            "timeout": lambda: idle_timeout_day // 2,
             "light_entity": light_entity
         },
         "day": {
-            "condition": lambda current_hour: local_sunrise + 2 <= current_hour < local_sunset,
-            "brightness": lambda: brightness_high,
-            "color_temp": lambda: color_temp_high,
-            "timeout": lambda: int(idle_timeout_day),
+            "condition": lambda current_hour: transitions["day_start"] <= current_hour < transitions["day_end"],
+            "brightness": lambda: BRIGHTNESS_HIGH,
+            "color_temp": lambda: COLOR_TEMP_HIGH,
+            "timeout": lambda: idle_timeout_day,
             "light_entity": light_entity
         },
         "evening": {
-            "condition": lambda current_hour: local_sunset <= current_hour < local_sunset + 2,
-            "brightness": lambda: int(brightness_high * 0.70),
-            "color_temp": lambda: int(color_temp_high * 0.70),
-            "timeout": lambda: int(idle_timeout_evening),
+            "condition": lambda current_hour: transitions["evening_start"] <= current_hour < transitions["evening_end"],
+            "brightness": lambda: max(BRIGHTNESS_LOW, int(BRIGHTNESS_HIGH * 0.70)),
+            "color_temp": lambda: max(COLOR_TEMP_LOW,int(COLOR_TEMP_HIGH * 0.65)),
+            "timeout": lambda: idle_timeout_evening,
             "light_entity": light_entity
         },
         "twilight": {
-            "condition": lambda current_hour: local_sunset + 2 <= current_hour < local_sunset + 3,
-            "brightness": lambda: int(brightness_high * 0.60),
-            "color_temp": lambda: int(color_temp_high * 0.65), 
-            "timeout": lambda: int(idle_timeout_evening)/2,
+            "condition": lambda current_hour: transitions["twilight_start"] <= current_hour < transitions["twilight_end"],
+            "brightness": lambda: max(BRIGHTNESS_LOW, int(BRIGHTNESS_HIGH * 0.60)),
+            "color_temp": lambda: max(COLOR_TEMP_LOW,int(COLOR_TEMP_HIGH * 0.55)),
+            "timeout": lambda: idle_timeout_evening // 2,
             "light_entity": light_entity
         },
         "night": {
-            "condition": lambda current_hour: (local_sunset + 3 <= current_hour < 24) or (0 <= current_hour < local_sunrise - 1),
-            "brightness": lambda: nightlight_brightness_pct if nightlight_brightness_pct else brightness_low,
-            "color_temp": lambda: color_temp_low,
-            "timeout": lambda: int(idle_timeout_night),
+            "condition": lambda current_hour: (current_hour >= transitions["twilight_end"] and current_hour < 24) or
+                                   (current_hour >= 0 and current_hour < transitions["morning_start"]),
+            "brightness": lambda: nightlight_brightness_pct if nightlight_brightness_pct else BRIGHTNESS_LOW,
+            "color_temp": lambda: COLOR_TEMP_LOW,
+            "timeout": lambda: idle_timeout_night,
             "light_entity": nightlight_entity if nightlight_entity else light_entity
         }
     }
-    for mode_name, mode_config in time_modes.items():
-        if mode_config["condition"](current_hour):
+
+    for mode, setting in time_modes.items(): # e.g., 'night' : {brightness, color_temp, idle_timeout_sec, light_entity}
+        if setting["condition"](current_hour):
             return {
-                "mode":mode_name,
-                "brightness_pct":mode_config["brightness"](),
-                "color_temp_kelvin":mode_config["color_temp"](),
-                "idle_timeout_sec":mode_config["timeout"]() * 60,
-                "light_entity":mode_config["light_entity"],
+                "mode": mode,
+                "brightness_pct": setting["brightness"](),
+                "color_temp_kelvin": setting["color_temp"](),
+                "idle_timeout_sec": setting["timeout"]() * 60,
+                "light_entity": setting["light_entity"],
             }
 
 # ---------------------- TURN ON/OFF LIGHT
+# ----------------------------------------------
 def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transition):
     """
     Apply light settings
@@ -267,7 +298,6 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
         current_brightness = current_attrs.get("brightness", None)
         current_color_temp = current_attrs.get("color_temp_kelvin", None)
         
-        # Safe conversion with error handling
         try:
             current_brightness_pct = int(current_brightness / 2.55) if current_brightness is not None else 0
         except (TypeError, ValueError):
@@ -306,7 +336,8 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
         return False
 
 
-### Main Logic Execution  ###
+# --------------------- MAIN LOGIC EXECUTION
+# ----------------------------------------------
 lux_sensor = data.get("lux_sensor")
 lux_max = data.get("lux_max", 60)
 lux_value = get_lux_value(lux_sensor) # returns 0 as default.
@@ -317,17 +348,19 @@ all_room_lights_state = hass.states.get(lights_for_lux_check).state if lights_fo
 # Only checks if lux > max allowed when lights are off. any light on will artificially impact the lux rating.
 if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_lights_state == "off" and int(lux_value) <= int(lux_max)):
     # get caller arguments
+    MIN_DAYLIGHT=int(data.get("min_daylight", 9)) # higher min_daylight = longer transitions
+    MAX_DAYLIGHT=int(data.get("max_daylight",14)) # shorter max_daylight = shorter transitions
+    BRIGHTNESS_LOW = int(data.get("brightness_low", 20))
+    BRIGHTNESS_HIGH = int(data.get("brightness_high", 100))
+    COLOR_TEMP_LOW = int(data.get("color_temp_kelvin_low", 2000))
+    COLOR_TEMP_HIGH = int(data.get("color_temp_kelvin_high", 4500))
     motion_source = data.get("motion_source")
     binary_sensor = data.get("binary_sensor")
     light_entity = data.get("light")
     timer_entity = data.get("timer")
-    brightness_low = data.get("brightness_low", 20)
-    brightness_high = data.get("brightness_high", 100)
-    color_temp_low = data.get("color_temp_kelvin_low", 2000)
-    color_temp_high = data.get("color_temp_kelvin_high", 4500)
-    idle_timeout_day_minutes = data.get("idle_timeout_day", 10)
-    idle_timeout_evening_minutes = data.get("idle_timeout_evening", 15)
-    idle_timeout_night_minutes = data.get("idle_timeout_night", 2)
+    idle_timeout_day_minutes = int(data.get("idle_timeout_day", 10))
+    idle_timeout_evening_minutes = int(data.get("idle_timeout_evening", 15))
+    idle_timeout_night_minutes = int(data.get("idle_timeout_night", 2))
     nightlight_entity = data.get("nightlight_entity", None)
     nightlight_brightness_pct = data.get("nightlight_brightness_pct", None)
     transition = data.get("transition", 0.75)
@@ -374,6 +407,6 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
     else:
         if idle_timer_state in ["idle", "paused"]:
             affected_light = calculations.get("light_entity")
-            apply_light_settings(light_entity=affected_light, brightness_pct=0, transition=1.5, color_temp_kelvin=None)
+            apply_light_settings(light_entity=affected_light, brightness_pct=0, transition=1, color_temp_kelvin=None)
 
 STATE_CACHE.clear()

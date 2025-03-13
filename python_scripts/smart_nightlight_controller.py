@@ -52,7 +52,6 @@ Input Parameters:
    - Night: Dimmest setting with warmest light color
 """
 
-### Helper Functions ###
 # ------------------------ HELPER FUNCTIONS ----------------- 
 # ----------------- ENTITY CACHING | STATE MANAGEMENT -------
 STATE_CACHE = {}
@@ -103,6 +102,7 @@ def is_motion_active(binary_sensor):
     return motion_state.state == "on"
 
 # ----------------- IDLE TIMER HANDLING
+# ----------------------------------------------
 def seconds_to_hms(seconds):
     """Convert seconds to a properly formatted time string 'HH:MM:SS'."""
     seconds = 0 if seconds < 0 else seconds
@@ -135,6 +135,7 @@ def start_idle_timer(timer_entity, duration_sec):
 
 
 # ----------------- GET SUNRISE/SUNSET TIME AS DECIMAL 12.50 == 12:30 
+# -----------------------------------------------------------------------
 def get_sun_times():
     """Get today's sunrise and sunset times in local time."""
     sun_state = get_cached_state("sun.sun")
@@ -152,52 +153,107 @@ def get_sun_times():
 
 
 # ----------------- CALC THE BRIGHTNESS/ COLOR TEMP BY TIME OF DAY.
+# -----------------------------------------------------------------------
+def scale_offset(daylight_hours:float, 
+                 min_daylight=9, max_daylight=14,
+                 min_offset=.3, max_offset=2):
+    """
+    Returns a dynamic offset (in hours) between [min_offset, max_offset],
+    depending on how short/long the day is.
+    
+    - If daylight_hours is near min_daylight (e.g. 10 hrs), 
+      this returns around max_offset (e.g. ~2.5 hrs).
+    - If daylight_hours is near max_daylight (e.g. 14 hrs),
+      this returns around min_offset (e.g. ~1.0 hr).
+    
+    Adjust the min_daylight, max_daylight, min_offset, max_offset 
+    values as desired for your location/latitude.
+    """
+    day_hours = max(min_daylight, min(daylight_hours, max_daylight))
+    ratio = (day_hours - min_daylight) / (max_daylight - min_daylight)
+    # We invert (1 - ratio) so that short days = bigger offsets, long days = smaller offsets
+    return min_offset + (max_offset - min_offset) * (1 - ratio)
+
+
+def get_dynamic_transitions(local_sunrise:float, local_sunset:float):
+    """
+    Returns a dict of dynamic time boundaries for Evening, Twilight, etc.
+    All times are in 'decimal hour' format (e.g., 19.5 = 7:30 PM).
+    """
+    daylight_hours = local_sunset - local_sunrise
+
+    # sets range, 0.5 - 2hrs for evening, 0.3 - 1hr for twilight
+    evening_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 2.0)
+    twilight_offset = scale_offset(daylight_hours, MIN_DAYLIGHT, MAX_DAYLIGHT, .5, 1.0)
+
+    morning_start = local_sunrise - twilight_offset
+    morning_end = local_sunrise + twilight_offset
+    evening_start = local_sunset
+    evening_end = evening_start + evening_offset  # e.g., ~ sunset + 2.0 (winter) or +0.5 (summer)
+
+    twilight_start = evening_end
+    twilight_end = twilight_start + twilight_offset # e.g., ~ sunset + 1.0 (winter) or +0.3 (summer)
+
+
+    return {
+        "morning_start": morning_start,
+        "morning_end":   morning_end,
+        "day_start":     morning_end, # daystart is morning end.
+        "day_end":       local_sunset,
+        "evening_start": evening_start,
+        "evening_end":   evening_end,
+        "twilight_start": twilight_start,
+        "twilight_end":  twilight_end,
+        # Night will be everything after twilight_end until morning_start
+    }
+
 def calculate_settings_by_time(current_hour, local_sunrise, local_sunset, brightness_low, brightness_boost, color_temp_high, color_temp_low):
     """
     Determines brightness and color temperature dynamically based on time of day.
     """
+    transitions = get_dynamic_transitions(local_sunrise, local_sunset)
+    
     time_modes = {
         "morning": {
-            "condition": lambda h: local_sunrise - 1 <= h < local_sunrise + 2,
+            "condition": lambda current_hour: transitions["morning_start"] <= current_hour < transitions["morning_end"],
             "brightness": lambda: min(100, brightness_low + 10),
             "boosted_pct": lambda: min(100, brightness_boost - 10),
             "color_temp": lambda: int(color_temp_high * 0.65),
         },
         "day": {
-            "condition": lambda h: local_sunrise + 2 <= h < local_sunset,
+            "condition": lambda current_hour: transitions["day_start"] <= current_hour < transitions["day_end"],
             "brightness": lambda: min(100, brightness_low + 40),
             "boosted_pct": lambda: brightness_boost,
             "color_temp": lambda: color_temp_high,
         },
         "evening": {
-            "condition": lambda h: local_sunset <= h < local_sunset + 2,
+            "condition": lambda current_hour: transitions["evening_start"] <= current_hour < transitions["evening_end"],
             "brightness": lambda: min(100, brightness_low + 10),
             "boosted_pct": lambda: min(100, brightness_boost - 10),
             "color_temp": lambda: int(color_temp_high * 0.70),
         },
         "twilight": {
-            "condition": lambda h: local_sunset + 2 <= h < local_sunset + 3,
+            "condition": lambda current_hour: transitions["twilight_start"] <= current_hour < transitions["twilight_end"],
             "brightness": lambda: min(100, brightness_low + 5),
             "boosted_pct": lambda: min(100, brightness_boost - 20),
             "color_temp": lambda: int(color_temp_high * 0.65),
         },
         "night": {
-            "condition": lambda h: (local_sunset + 3 <= h < 24) or (0 <= h < local_sunrise - 1),
+            "condition": lambda current_hour: (current_hour >= transitions["twilight_end"] and current_hour < 24) or
+                            (current_hour >= 0 and current_hour < transitions["morning_start"]),
             "brightness": lambda: brightness_low,
             "boosted_pct": lambda: min(100, brightness_boost - 25),
             "color_temp": lambda: color_temp_low,
         },
     }
 
-    for mode_name, mode_config in time_modes.items():
-        if mode_config["condition"](current_hour):
-            brightness_pct = mode_config["brightness"]()
-            boosted_pct = mode_config["boosted_pct"]()
+    for mode_name, setting in time_modes.items():
+        if setting["condition"](current_hour):
             return {
                 "mode": mode_name,
-                "brightness_pct": brightness_pct,
-                "color_temp_kelvin": mode_config["color_temp"](),
-                "boosted_pct":max(brightness_pct, boosted_pct)
+                "brightness_pct": (brightness_pct := setting["brightness"]()),
+                "color_temp_kelvin": setting["color_temp"](),
+                "boosted_pct":max(brightness_pct, setting["boosted_pct"]())
             }
 
 # ---------------------- TURN ON/OFF LIGHT
@@ -268,18 +324,21 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
         logger.error(f"Error applying light settings to {light_entity}: {str(e)}")
         return False
 
-### Main Logic Execution  ###
+# --------------------- MAIN LOGIC EXECUTION
+# ----------------------------------------------
 # Get parameters from data
+MIN_DAYLIGHT=int(data.get("min_daylight", 8))
+MAX_DAYLIGHT=int(data.get("max_daylight",16))
 motion_source = data.get("motion_source")
 nightlights = data.get("nightlights", None)
 light_entity = data.get("light")
 timer_entity = data.get("timer")
 lux_sensor = data.get("lux_sensor")
-lux_threshold = data.get("lux_threshold", 19)
-brightness_low = data.get("brightness_low", 10)  
-brightness_high = data.get("brightness_high", 100)
-color_temp_low = data.get("color_temp_kelvin_low", 2000)
-color_temp_high = data.get("color_temp_kelvin_high", 3500)
+lux_threshold = int(data.get("lux_threshold", 19))
+brightness_low = int(data.get("brightness_low", 10))
+brightness_high = int(data.get("brightness_high", 100))
+color_temp_low = int(data.get("color_temp_kelvin_low", 2000))
+color_temp_high = int(data.get("color_temp_kelvin_high", 3500))
 transition = data.get("transition", 0.75)
 idle_timeout_mins = data.get("idle_timeout_mins", 2)
 forced_dim = data.get("forced_dim", False)

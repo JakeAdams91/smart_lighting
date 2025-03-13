@@ -14,6 +14,9 @@ triggers:
 conditions: []
 actions:
   - data:
+      #OPTIONAL - only adjust if light transitions need refined
+      min_daylight: 9 # lower increases
+      max_daylight: 14 #
       lux_sensor: sensor.recroom_motionsensor_001_illuminance
       lux_max: 65 # max ambient light for lights to turn on. if lux_sensor > lux_max, lights don't come on.
       lights_for_lux_check: light.livingroom_lights # livingroom light group - checking for any light on as these will artificially impact the lux sensor.
