@@ -327,8 +327,8 @@ def apply_light_settings(light_entity, brightness_pct, color_temp_kelvin, transi
 # --------------------- MAIN LOGIC EXECUTION
 # ----------------------------------------------
 # Get parameters from data
-MIN_DAYLIGHT=int(data.get("min_daylight", 8))
-MAX_DAYLIGHT=int(data.get("max_daylight",16))
+MIN_DAYLIGHT=int(data.get("min_daylight", 9))
+MAX_DAYLIGHT=int(data.get("max_daylight",14))
 motion_source = data.get("motion_source")
 nightlights = data.get("nightlights", None)
 light_entity = data.get("light")
