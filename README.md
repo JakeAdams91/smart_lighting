@@ -40,7 +40,7 @@ This repository provides Home Assistant automation scripts for managing **smart 
 
 1. **Clone the repository**:
    ```sh
-   git clone https://github.com/yourusername/smart-lighting-automation.git
+   git clone https://github.com/JakeAdams91/smart_lighting.git
    cd smart-lighting-automation
    ```
 
