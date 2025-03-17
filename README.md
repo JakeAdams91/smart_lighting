@@ -14,12 +14,13 @@ This repository provides Home Assistant automation scripts for managing **smart 
 - **Customizable thresholds:** fully configurable
 
 ### **2. Smart Light Control**
-- **Motion-activated:** turn on when motion is detected.
+- **Motion-activated:** Optional - turn on when motion is detected.
 - **Ambient-sensitive:** Optional - Lights only activate when illuminance is below a configurable threshold.
 - **Dynamic brightness:** Adjusts brightness based on time of day.
 - **Color adaptation:** Warmer hues at nights, cooler white midday.
 - **Auto-off:** Turns off lights after a period of inactivity.
 - **Customizable thresholds:** fully configurable
+- **does not require motion or ambient sensors, can act as a simple brightness and color temp setter.**
 
 ### **3. Override Functions**
 - **Manual Override:** Deactivates specified automations
