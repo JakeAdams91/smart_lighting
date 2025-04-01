@@ -15,38 +15,37 @@ A comprehensive motion-based smart lighting system that adjusts brightness and c
 based on time of day, ambient light levels, and motion detection status.
 
 Input Parameters:
-- binary_sensor: Binary sensor entity to detect motion
-- light: Light entity to control
-- timer: Timer entity for idle timeout
-- brightness_low: Minimum brightness percentage (default: 20)
-- brightness_high: Maximum brightness percentage (default: 100)
-- color_temp_kelvin_low: Warm color temperature in Kelvin (default: 2000)
-- color_temp_kelvin_high: Cool color temperature in Kelvin (default: 4500)
-- idle_timeout_day: Minutes before turning off during daytime (default: 10)
-- idle_timeout_evening: Minutes before turning off during evening (default: 15)
-- idle_timeout_night: Minutes before turning off during nighttime (default: 2)
-- nightlight_entity: Optional separate light entity for nighttime mode
-- nightlight_brightness_pct: Optional brightness for nightlight
-- transition: Transition time in seconds (default: 0.75)
-- lux_sensor: Optional illuminance sensor to check ambient light
-- lux_min: Minimum lux threshold (default: 5)
-- lux_max: Maximum lux threshold (default: 60)
-- lights_for_lux_check: Light group to check if any lights are on
+- binary_sensor: Binary sensor entity for detecting motion.
+- light: Primary light entity to control.
+- timer: Timer entity used to manage idle timeouts.
+- brightness_low: Minimum brightness percentage (default: 20).
+- brightness_high: Maximum brightness percentage (default: 100).
+- color_temp_kelvin_low: Warm color temperature in Kelvin (default: 2000).
+- color_temp_kelvin_high: Cool color temperature in Kelvin (default: 4500).
+- off_period: Dictionary (e.g., {"start": "00:00", "end": "05:00"}) defining a time range (in hh:mm format) during which the light should not activate.
+- idle_timeout_day: Idle timeout (in minutes) for daytime operation (default: 10).
+- idle_timeout_evening: Idle timeout (in minutes) for evening operation (default: 15).
+- idle_timeout_night: Idle timeout (in minutes) for nighttime operation (default: 2).
+- nightlight_entity: Optional separate light entity to use in night mode.
+- nightlight_brightness_pct: Optional brightness percentage for the nightlight.
+- transition: Duration (in seconds) for smooth light transitions (default: 0.75).
+- lux_sensor: Optional sensor entity to measure ambient illuminance.
+- lux_max: Maximum lux threshold (default: 60) for light activation.
+- lights_for_lux_check: Entity or group to check if any lights are already on, to avoid false lux readings.
 
 ---------------------------------------------------------
 ------------------- FUNCTIONAL OVERVIEW ------------------
 ---------------------------------------------------------
 1. Caches entity states for optimized performance
-2. Performs lux-based checks to prevent unnecessary light activation
-3. Calculates appropriate lighting based on time segments:
-   - Morning: 1 hour before sunrise → 2 hours after sunrise
-   - Day: 2 hours after sunrise → sunset
-   - Evening: sunset → 2 hours after sunset
-   - Twilight: 2 hours after sunset → 3 hours after sunset
-   - Night: 3 hours after sunset → 1 hour before sunrise
-4. Adjusts brightness and color temperature based on time segment
-5. Manages motion detection and timer-based light control
-6. Applies lighting changes with transition effects
+2. Evaluates ambient light, only turning on lights if below threshold. (and lights are not currently on, as they would artificially inflate the lux value)
+2.1. Checks if current time is not between off_period 
+3. Calculates light settings based on time and length of day
+    - long transitional periods for shorter days
+        - winter: brighter - whiter light to make up for lack of natural light
+    - rapid transitional periods for long days
+        - summer: fast move from bright white, to amber hues and night modes.
+4. Establishes timers to turn off lighting if no sensor triggers in the time period.
+5. Applies lighting changes with transition effects
 """
 
 # ------------------------ HELPER FUNCTIONS ----------------- 
@@ -134,7 +133,33 @@ def get_sun_times():
             return sunrise_float, sunset_float
     return 7.0, 18.0  # Fallback sunrise/sunset times.
 
+def is_off_period(now, off_period):
+    """
+    Allows you to define periods of the day when you don't want the lights to come on.
+    """
+    if not off_period:
+        return False
+    
+    off_start = off_period.get("start")
+    off_end = off_period.get("end")
+    if not off_start or not off_end:
+        return False
+    
+    try: # convert hh:mm to decimal.
+        off_start_parts = off_start.split(":")
+        off_start = float(off_start_parts[0]) + float(off_start_parts[1]) / 60.0
 
+        off_end_parts = off_end.split(":")
+        off_end = float(off_end_parts[0]) + float(off_end_parts[1]) / 60.0
+    except Exception as e:
+        logger.error("Error parsing off_period times: " + str(e))
+        return False
+    
+    if off_start < off_end: # off period lands in same day (not over midnight)
+        return off_start <= now < off_end
+    else:
+        return now >= off_start or now < off_end # off period crosses midnight.
+    
 # ----------------- CALC THE BRIGHTNESS/ COLOR TEMP BY TIME OF DAY.
 # ----------------------------------------------------------------------
 def scale_offset(daylight_hours:float, 
@@ -345,7 +370,8 @@ lights_for_lux_check = data.get("lights_for_lux_check")
 all_room_lights_state = hass.states.get(lights_for_lux_check).state if lights_for_lux_check is not None else None
 
 # Check if all_room_lights_state is None (used for jobs that don't need lux evals)
-# Only checks if lux > max allowed when lights are off. any light on will artificially impact the lux rating.
+# Or Lights are On (used to update timers and temp/brightness)
+# Only checks if lux > max allowed when lights are off. lights on will artificially impact the lux rating.
 if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_lights_state == "off" and int(lux_value) <= int(lux_max)):
     # get caller arguments
     MIN_DAYLIGHT=int(data.get("min_daylight", 9)) # higher min_daylight = longer transitions
@@ -354,6 +380,7 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
     BRIGHTNESS_HIGH = int(data.get("brightness_high", 100))
     COLOR_TEMP_LOW = int(data.get("color_temp_kelvin_low", 2000))
     COLOR_TEMP_HIGH = int(data.get("color_temp_kelvin_high", 4500))
+    off_period = data.get("off_period", {}) # EXPECTING: {"start":"00:00", "end":"05:00"} e.g., lights don't turn on between midnight -> 0500 AM
     motion_source = data.get("motion_source")
     binary_sensor = data.get("binary_sensor")
     light_entity = data.get("light")
@@ -365,48 +392,51 @@ if all_room_lights_state is None or all_room_lights_state == "on" or (all_room_l
     nightlight_brightness_pct = data.get("nightlight_brightness_pct", None)
     transition = data.get("transition", 0.75)
 
-    # Get current time & sunrise/sunset
+    # Get current time local
     current_time = dt_util.now()
     current_hour = current_time.hour + (current_time.minute / 60)  # Convert to decimal hour
-    local_sunrise, local_sunset = get_sun_times()
     
-    calculations = calculate_settings_by_time(
-                        light_entity=light_entity,
-                        current_hour=current_hour, 
-                        local_sunrise=local_sunrise, 
-                        local_sunset=local_sunset, 
-                        idle_timeout_day=idle_timeout_day_minutes, 
-                        idle_timeout_evening=idle_timeout_evening_minutes, 
-                        idle_timeout_night=idle_timeout_night_minutes,
-                        nightlight_brightness_pct=nightlight_brightness_pct,
-                        nightlight_entity=nightlight_entity
-                    )
+    # check if off period.
+    if not is_off_period(now=current_hour, off_period=off_period): # False == During on Hours, run code. 
+        local_sunrise, local_sunset = get_sun_times()
+        
+        calculations = calculate_settings_by_time(
+                            light_entity=light_entity,
+                            current_hour=current_hour, 
+                            local_sunrise=local_sunrise, 
+                            local_sunset=local_sunset, 
+                            idle_timeout_day=idle_timeout_day_minutes, 
+                            idle_timeout_evening=idle_timeout_evening_minutes, 
+                            idle_timeout_night=idle_timeout_night_minutes,
+                            nightlight_brightness_pct=nightlight_brightness_pct,
+                            nightlight_entity=nightlight_entity
+                        )
 
-    room_motion_state = get_cached_state(binary_sensor).state if binary_sensor else "on" # default "on" for cases that don't need motion sensing. 
-    idle_timer_state = get_cached_state(timer_entity).state if timer_entity else "active" # default "active" just lets the code run to turn on light. 
-    
-    if room_motion_state == "on":
-        """
-        for reference:
-        calculations = {
-            mode (str) 'night' or 'day' and such
-            brightness_pct (int) - the brightness to set the light
-            color_temp_kelvin (int) - the temperature to set the light
-            idle_timeout_sec (int) - timeout in seconds
-            light_entity - the light object that will be acted upon.
-        }
-        """
-        light_entity = calculations.get("light_entity")
-        brightness_pct = calculations.get("brightness_pct")
-        color_temp_kelvin = calculations.get("color_temp_kelvin")
-        idle_timeout_sec = calculations.get("idle_timeout_sec")
+        room_motion_state = get_cached_state(binary_sensor).state if binary_sensor else "on" # default "on" for cases that don't need motion sensing. 
+        idle_timer_state = get_cached_state(timer_entity).state if timer_entity else "active" # default "active" just lets the code run to turn on light. 
+        
+        if room_motion_state == "on":
+            """
+            for reference:
+            calculations = {
+                mode (str) 'night' or 'day' and such
+                brightness_pct (int) - the brightness to set the light
+                color_temp_kelvin (int) - the temperature to set the light
+                idle_timeout_sec (int) - timeout in seconds
+                light_entity - the light object that will be acted upon.
+            }
+            """
+            light_entity = calculations.get("light_entity")
+            brightness_pct = calculations.get("brightness_pct")
+            color_temp_kelvin = calculations.get("color_temp_kelvin")
+            idle_timeout_sec = calculations.get("idle_timeout_sec")
 
-        apply_light_settings(light_entity=light_entity, brightness_pct=brightness_pct, color_temp_kelvin=color_temp_kelvin, transition=transition)
-        if timer_entity is not None:
-            start_idle_timer(timer_entity=timer_entity, duration_sec=idle_timeout_sec)
-    else:
-        if idle_timer_state in ["idle", "paused"]:
-            affected_light = calculations.get("light_entity")
-            apply_light_settings(light_entity=affected_light, brightness_pct=0, transition=1, color_temp_kelvin=None)
+            apply_light_settings(light_entity=light_entity, brightness_pct=brightness_pct, color_temp_kelvin=color_temp_kelvin, transition=transition)
+            if timer_entity is not None:
+                start_idle_timer(timer_entity=timer_entity, duration_sec=idle_timeout_sec)
+        else:
+            if idle_timer_state in ["idle", "paused"]:
+                affected_light = calculations.get("light_entity")
+                apply_light_settings(light_entity=affected_light, brightness_pct=0, transition=1, color_temp_kelvin=None)
 
 STATE_CACHE.clear()
