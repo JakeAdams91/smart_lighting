@@ -140,8 +140,8 @@ def is_off_period(now, off_period):
     if not off_period:
         return False
     
-    off_start = off_period.get("start")
-    off_end = off_period.get("end")
+    off_start = str(off_period.get("start")).strip()
+    off_end = str(off_period.get("end", "")).strip()
     if not off_start or not off_end:
         return False
     
@@ -153,7 +153,7 @@ def is_off_period(now, off_period):
         off_end = float(off_end_parts[0]) + float(off_end_parts[1]) / 60.0
     except Exception as e:
         logger.error("Error parsing off_period times: " + str(e))
-        return False
+        return False 
     
     if off_start < off_end: # off period lands in same day (not over midnight)
         return off_start <= now < off_end

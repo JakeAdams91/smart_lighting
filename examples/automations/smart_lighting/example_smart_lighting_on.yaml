@@ -24,6 +24,10 @@ actions:
       binary_sensor: binary_sensor.livingroom_motionsensor_001_occupancy
       light: light.livingroom_lights # light you wish to affect, use light-groups to control a whole room.
       timer: timer.livingroom_idle_timer # need add timer to configuration.yaml <-- this lets automation turn off lights after no motion
+      off_period: # Set a time period for lights to stay off. "HH:MM" formatted time in 24 hour. can dynamically generate times as seen in "end" (gets 1 hour before sunrise)
+        start: "23:30" 
+        end: >-
+          {{ (as_local(as_datetime(state_attr('sun.sun','next_rising'))) - timedelta(hours=1)).time().strftime('%H:%M') }}
       brightness_low: 35
       brightness_high: 100
       color_temp_kelvin_low: 2200

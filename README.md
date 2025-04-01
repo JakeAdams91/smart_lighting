@@ -19,6 +19,7 @@ This repository provides Home Assistant automation scripts for managing **smart 
 - **Dynamic brightness:** Adjusts brightness based on time of day.
 - **Color adaptation:** Warmer hues at nights, cooler white midday.
 - **Auto-off:** Turns off lights after a period of inactivity.
+- **Off-period handling:** Prevents activation during user-defined hours.
 - **Customizable thresholds:** fully configurable
 - **does not require motion or ambient sensors, can act as a simple brightness and color temp setter.**
 
